@@ -1,10 +1,8 @@
 package com.vmware.bespin.scheduler;
 
-package com.vmware;
-
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
-import com.vmware.generated.tables.Components;
+import com.vmware.bespin.scheduler.generated.tables.Components;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
