@@ -22,12 +22,12 @@
         <dependency>
             <groupId>org.jooq</groupId>
             <artifactId>jooq</artifactId>
-            <version>3.13.3</version>
+            <version>3.16.5</version>
         </dependency>
         <dependency>
             <groupId>org.jooq</groupId>
             <artifactId>jooq-meta-extensions</artifactId>
-            <version>3.13.3</version>
+            <version>3.16.5</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -37,7 +37,12 @@
         <dependency>
             <groupId>commons-cli</groupId>
             <artifactId>commons-cli</artifactId>
-            <version>1.4</version>
+            <version>1.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>1.7.36</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -80,17 +85,33 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.22.2</version>
             </plugin>
+
             <plugin>
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq</artifactId>
-                <version>3.13.3</version>
+                <version>3.16.5</version>
             </plugin>
+
             <plugin>
+                <!-- Specify the maven code generator plugin -->
+                <!-- Use org.jooq                for the Open Source Edition
+                         org.jooq.pro            for commercial editions with Java 17 support,
+                         org.jooq.pro-java-11    for commercial editions with Java 11 support,
+                         org.jooq.pro-java-8     for commercial editions with Java 8 support,
+                         org.jooq.trial          for the free trial edition with Java 17 support,
+                         org.jooq.trial-java-11  for the free trial edition with Java 11 support,
+                         org.jooq.trial-java-8   for the free trial edition with Java 8 support
+
+                     Note: Only the Open Source Edition is hosted on Maven Central.
+                           Import the others manually from your distribution -->
                 <groupId>org.jooq</groupId>
                 <artifactId>jooq-codegen-maven</artifactId>
-                <version>3.13.3</version>
+                <version>3.16.5</version>
+
                 <executions>
                     <execution>
+                        <id>jooq-codegen</id>
+                        <phase>generate-sources</phase>
                         <goals>
                             <goal>generate</goal>
                         </goals>
@@ -105,6 +126,7 @@
                                 <property>
                                     <key>scripts</key>
                                     <value>${basedir}/src/main/resources/bespin_tables.sql</value>
+                                    <value>${basedir}/src/main/resources/old_tables.sql</value>
                                 </property>
                             </properties>
                         </database>
@@ -115,6 +137,7 @@
                     </generator>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 </project>
