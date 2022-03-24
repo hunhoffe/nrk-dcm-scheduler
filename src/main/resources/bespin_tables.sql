@@ -1,15 +1,14 @@
 create table nodes(
     id integer,
     cores integer,
-    memory_slices integer
+    memslices integer
 );
 
 create table applications(
-    id integer,
-    
+    id integer    
 );
 
-create table app_cores(
+create table cores(
     id integer,
     application integer,
 	current_node integer,
@@ -19,7 +18,7 @@ create table app_cores(
 	primary key (application, id)
 );
 
-create table mem_slices(
+create table memslices(
     id integer,
     application integer,
     current_node integer,
@@ -28,3 +27,4 @@ create table mem_slices(
     foreign key (application) references applications(id),
     primary key (application, id)
 );
+
