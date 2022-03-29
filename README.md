@@ -2,23 +2,22 @@
 
 ## Build
 
-Generate Java helper classes by on the bespin_schema.sql file:
+Create a Runnable Jar with:
 ```bash
-mvn jooq-codegen:generate
-```
-
-Build with:
-```bash
-mvn install
+mvn clean compile assembly:single
 ```
 
 ## Run
-Run with:
+
+Run the jar with:
 ```bash
-mvn exec:java
+java -jar target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```
 
-## Create a Runnable Jar with:
+## Generating Java Classes for SQL Tables
+
+This normally happens during the build command above, but if you want to run it
+separately, the command is:
 ```bash
-mvn clean compile assembly:single
+mvn jooq-codegen:generate
 ```
