@@ -1,5 +1,12 @@
 package com.vmware.bespin.scheduler;
 
+import com.vmware.dcm.Model;
+import com.vmware.dcm.ModelException;
+import com.vmware.bespin.scheduler.generated.tables.Nodes;
+import com.vmware.bespin.scheduler.generated.tables.Applications;
+
+import java.util.List;
+
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 import org.jooq.Result;
@@ -13,10 +20,10 @@ public class SchedulerSimulator {
         Class.forName ("org.h2.Driver");
         final DSLContext conn = DSL.using("jdbc:h2:mem:");
 
-        // node == physical machine / server
-        conn.execute("create table nodes(" +
-                "id integer)");
+        final Nodes t = Nodes.NODES;
 
         System.out.println("this is the main method!");
+
+        Model.build(conn, List.of());
     }
 }
