@@ -17,3 +17,8 @@ Run with:
 ```bash
 mvn exec:java
 ```
+
+## Create a Runnable Jar with:
+```bash
+mvn clean compile assembly:single
+```
