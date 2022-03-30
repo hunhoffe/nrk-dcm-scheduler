@@ -50,7 +50,6 @@ class Simulation
                     .set(t.CONTROLLABLE__NODE, (Field<Integer>) null)
                     .execute();
         }
-        LOG.info(conn.execute("select * from cores"));
         this.counter++;
     }
 
@@ -91,7 +90,7 @@ class Simulation
 
     public boolean checkForCapacityViolation() {
         // TODO: check per-node capacity
-        return true;
+        return false;
     }
 }
 
@@ -124,9 +123,13 @@ public class SimulationRunner {
 
         // Add nodes with specified cores/memory
         final Nodes t = Nodes.NODES;
-        for (int i = 0; i < numNodes; i++) {
+        for (int i = 1; i <= numNodes; i++) {
             conn.insertInto(t)
                     .set(t.ID, i)
+                    .set(t.CORES, coresPerNode)
+                    .set(t.MEMSLICES, memSlicesPerNode)
+                    .newRecord()
+                    .set(t.ID, 100+i)
                     .set(t.CORES, coresPerNode)
                     .set(t.MEMSLICES, memSlicesPerNode)
                     .execute();
@@ -135,7 +138,45 @@ public class SimulationRunner {
         // Add initial applications
         final Applications t2 = Applications.APPLICATIONS;
         conn.insertInto(t2)
-                .set(t.ID, 0)
+                .set(t2.ID, 0)
+                .execute();
+
+        final Cores t3 = Cores.CORES;
+        conn.insertInto(t3)
+                .set(t3.ID, 100000)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 1)
+                .set(t3.CURRENT_NODE, 1)
+                .execute();
+        conn.insertInto(t3)
+                .set(t3.ID, 100001)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 1)
+                .set(t3.CURRENT_NODE, 1)
+                .execute();
+        conn.insertInto(t3)
+                .set(t3.ID, 100002)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 1)
+                .set(t3.CURRENT_NODE, 1)
+                .execute();
+        conn.insertInto(t3)
+                .set(t3.ID, 100003)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 2)
+                .set(t3.CURRENT_NODE, 2)
+                .execute();
+        conn.insertInto(t3)
+                .set(t3.ID, 100004)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 2)
+                .set(t3.CURRENT_NODE, 2)
+                .execute();
+        conn.insertInto(t3)
+                .set(t3.ID, 100005)
+                .set(t3.APPLICATION, 0)
+                .set(t3.CONTROLLABLE__NODE, 3)
+                .set(t3.CURRENT_NODE, 3)
                 .execute();
     }
 
@@ -165,11 +206,15 @@ public class SimulationRunner {
                 " select * from components group by object_id,replica_id check all_equal(controllable__disk) = true";
          */
 
-        // Dummy constraint for testing
-        final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from cores check current_node = controllable__node";
+        final String node_capacity_view = "CREATE CONSTRAINT node_capacity_view AS " +
+                " SELECT nodes.id, nodes.cores, COUNT(*) AS usedCores " +
+                " FROM nodes JOIN cores ON (nodes.id = cores.controllable__node) " +
+                " GROUP BY nodes.id, nodes.cores";
 
-        return Model.build(conn, List.of(placed_constraint));
+        final String node_capacity_constraint = "CREATE CONSTRAINT node_capacity_constraint AS " +
+                " SELECT * FROM node_capacity_view CHECK usedCores < cores";
+
+        return Model.build(conn, List.of(node_capacity_view, node_capacity_constraint));
     }
 
     private static void printStats(final DSLContext conn) {
@@ -223,7 +268,8 @@ public class SimulationRunner {
             if(cmd.hasOption("h")) {
                 // automatically generate the help statement
                 HelpFormatter formatter = new HelpFormatter();
-                formatter.printHelp( "java -jar target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
+                formatter.printHelp( "java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml " +
+                                "target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
                         options);
                 return;
             }
@@ -258,6 +304,11 @@ public class SimulationRunner {
 
             // Add/delete memory and/or core requests
             sim.createTurnover();
+            System.out.println("Nodes:");
+            System.out.println(conn.fetch("select * from nodes"));
+            System.out.println("Cores:");
+            System.out.println(conn.fetch("select * from cores"));
+            System.out.println("BYE");
 
             // Solve and update accordingly
             sim.runModelAndUpdateDB();

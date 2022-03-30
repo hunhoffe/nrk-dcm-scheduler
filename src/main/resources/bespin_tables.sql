@@ -17,7 +17,7 @@ create table cores(
 	controllable__node integer,
 	foreign key (controllable__node) references nodes(id),
 	foreign key (application) references applications(id),
-	primary key (application, id)
+	primary key (id)
 );
 
 create table memslices(
@@ -27,5 +27,5 @@ create table memslices(
     controllable__node integer,
     foreign key (controllable__node) references nodes(id),
     foreign key (application) references applications(id),
-    primary key (application, id)
+    primary key (id)
 );

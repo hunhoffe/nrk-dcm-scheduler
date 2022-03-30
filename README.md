@@ -2,7 +2,7 @@
 
 ## Build
 
-Create a Runnable Jar with:
+Create a runnable jar with:
 ```bash
 mvn clean compile assembly:single
 ```
@@ -11,7 +11,7 @@ mvn clean compile assembly:single
 
 Run the jar with:
 ```bash
-java -jar target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar
+java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [OPTIONS]
 ```
 
 ## Generating Java Classes for SQL Tables
