@@ -13,6 +13,7 @@ create table applications(
 create table cores(
     id integer,
     application integer,
+    status varchar(36),
 	current_node integer,
 	controllable__node integer,
 	foreign key (controllable__node) references nodes(id),
@@ -23,6 +24,7 @@ create table cores(
 create table memslices(
     id integer,
     application integer,
+    status varchar(36),
     current_node integer,
     controllable__node integer,
     foreign key (controllable__node) references nodes(id),

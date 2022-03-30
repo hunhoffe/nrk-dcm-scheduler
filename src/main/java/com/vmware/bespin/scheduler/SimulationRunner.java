@@ -34,7 +34,7 @@ class Simulation
     Simulation(Model model, DSLContext conn) {
         this.model = model;
         this.conn = conn;
-        this.counter = 1;
+        this.counter = 0;
     }
 
     public void createTurnover() {
@@ -42,10 +42,11 @@ class Simulation
         final Cores t = Cores.CORES;
 
         // TODO: actually calculate turnover
-        for (int i = 1; i <= 10; i++) {
+        for (int i = 0; i < 10; i++) {
             conn.insertInto(t)
-                    .set(t.ID, this.counter * i)
+                    .set(t.ID, this.counter*10 + i)
                     .set(t.APPLICATION, 0)
+                    .set(t.STATUS, "PENDING")
                     .set(t.CURRENT_NODE, -1)
                     .set(t.CONTROLLABLE__NODE, (Field<Integer>) null)
                     .execute();
@@ -56,30 +57,33 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results = null;
         try {
-            results = model.solve("cores");
+            results = model.solve("CORES");
         } catch (ModelException e) {
             LOG.info("Got a model exception when solving: {}", e);
             return false;
         }
 
-        if (results == null)
+        if (results == null) {
             return false;
+        }
 
         final Cores t = Cores.CORES;
         final List<Update<?>> updates = new ArrayList<>();
         // Each record is a row in the COMPONENTS table
-        LOG.debug("new cores placed on:");
+        LOG.info("new cores placed on:");
         results.forEach(r -> {
                     final Integer coreId = (Integer) r.get("ID");
                     final Integer application = (Integer) r.get("APPLICATION");
-                    final Integer currentNode = (Integer) r.get("CURRENT_NODE");
+                    final String status = (String) r.get("STATUS");
                     final Integer newNode = (Integer) r.get("CONTROLLABLE__NODE");
-                    if (currentNode == -1) {
-                        LOG.debug("{} ", newNode);
+                    if (status.equals("PENDING")) {
+                        LOG.info("{} ", r);
                         updates.add(
                                 conn.update(t)
                                         .set(t.CURRENT_NODE, newNode)
-                                        .where(t.ID.eq(coreId).and(t.APPLICATION.eq(application)))
+                                        .set(t.STATUS, "PLACED")
+                                        .where(t.ID.eq(coreId).and(t.APPLICATION.eq(application))
+                                        .and(t.STATUS.eq("PENDING")))
                         );
                     }
                 }
@@ -128,10 +132,6 @@ public class SimulationRunner {
                     .set(t.ID, i)
                     .set(t.CORES, coresPerNode)
                     .set(t.MEMSLICES, memSlicesPerNode)
-                    .newRecord()
-                    .set(t.ID, 100+i)
-                    .set(t.CORES, coresPerNode)
-                    .set(t.MEMSLICES, memSlicesPerNode)
                     .execute();
         }
 
@@ -140,81 +140,31 @@ public class SimulationRunner {
         conn.insertInto(t2)
                 .set(t2.ID, 0)
                 .execute();
-
-        final Cores t3 = Cores.CORES;
-        conn.insertInto(t3)
-                .set(t3.ID, 100000)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 1)
-                .set(t3.CURRENT_NODE, 1)
-                .execute();
-        conn.insertInto(t3)
-                .set(t3.ID, 100001)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 1)
-                .set(t3.CURRENT_NODE, 1)
-                .execute();
-        conn.insertInto(t3)
-                .set(t3.ID, 100002)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 1)
-                .set(t3.CURRENT_NODE, 1)
-                .execute();
-        conn.insertInto(t3)
-                .set(t3.ID, 100003)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 2)
-                .set(t3.CURRENT_NODE, 2)
-                .execute();
-        conn.insertInto(t3)
-                .set(t3.ID, 100004)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 2)
-                .set(t3.CURRENT_NODE, 2)
-                .execute();
-        conn.insertInto(t3)
-                .set(t3.ID, 100005)
-                .set(t3.APPLICATION, 0)
-                .set(t3.CONTROLLABLE__NODE, 3)
-                .set(t3.CURRENT_NODE, 3)
-                .execute();
     }
 
     private static Model createModel(final DSLContext conn) {
-        /*
-        // Capacity constraint is actually just a priority constraint
-        final String spareDiskCapacity = "create view spare_disk as " +
-                "select disks.max_capacity - sum(components.current_util) as disk_spare " +
-                "from components " +
-                "join disks " +
-                "  on disks.id = components.controllable__disk " +
-                "group by disks.id, disks.max_capacity";
-
-        // Queries presented as objectives, will have their values maximized.
-        final String priorityDisk = "create view objective_load_disk as select min(disk_spare)-max(disk_spare) from spare_disk";
-
-        // Make sure each replica of a component is on a different disk
-        final String replica_constraint = "create view replica_constraint as " +
-                "select * from components group by id check all_different(controllable__disk) = true";
-
-        // Only new components are placed
-        final String placed_constraint = "create view placed_constraint as " +
-                " select * from components where status = 'PLACED' check current_disk = controllable__disk";
-
-        // Components belonging to the same object must be on the same disk
-        final String object_constraint = "create view object_constraint as " +
-                " select * from components group by object_id,replica_id check all_equal(controllable__disk) = true";
-         */
-
-        final String node_capacity_view = "CREATE CONSTRAINT node_capacity_view AS " +
-                " SELECT nodes.id, nodes.cores, COUNT(*) AS usedCores " +
+        // Create view that calculates how many cores are used on each node
+        final String node_capacity_view = "CREATE VIEW node_capacity_view AS " +
+                " SELECT nodes.id, (nodes.cores - COUNT(*)) AS spareCores " +
                 " FROM nodes JOIN cores ON (nodes.id = cores.controllable__node) " +
-                " GROUP BY nodes.id, nodes.cores";
+                " GROUP BY nodes.id";
+        conn.execute(node_capacity_view);
 
+        // Only PENDING processes are placed
+        // All DCM solvers need to have this constraint
+        final String placed_constraint = "CREATE CONSTRAINT placed_constraint AS " +
+                " SELECT * FROM cores WHERE status = 'PLACED' CHECK current_node = controllable__node";
+
+        // Hard constraint: Respect core capacity of each node
         final String node_capacity_constraint = "CREATE CONSTRAINT node_capacity_constraint AS " +
-                " SELECT * FROM node_capacity_view CHECK usedCores < cores";
+                " SELECT * FROM node_capacity_view CHECK spareCores >= 0";
 
-        return Model.build(conn, List.of(node_capacity_view, node_capacity_constraint));
+        // Soft constraint: Load balance cores across nodes
+        final String balance_nodes = "CREATE CONSTRAINT balance_nodes AS " +
+                " SELECT * FROM node_capacity_view " +
+                " MAXIMIZE min(spareCores)-max(spareCores)";
+
+        return Model.build(conn, List.of(placed_constraint, node_capacity_constraint, balance_nodes));
     }
 
     private static void printStats(final DSLContext conn) {
@@ -304,14 +254,15 @@ public class SimulationRunner {
 
             // Add/delete memory and/or core requests
             sim.createTurnover();
-            System.out.println("Nodes:");
-            System.out.println(conn.fetch("select * from nodes"));
             System.out.println("Cores:");
             System.out.println(conn.fetch("select * from cores"));
             System.out.println("BYE");
 
             // Solve and update accordingly
-            sim.runModelAndUpdateDB();
+            if (!sim.runModelAndUpdateDB()) {
+                LOG.warn("No updates from running model???");
+                break;
+            }
 
             // Check for violations
             if (sim.checkForCapacityViolation())
