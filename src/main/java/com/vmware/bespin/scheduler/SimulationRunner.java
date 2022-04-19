@@ -89,8 +89,11 @@ class Simulation
 
         // TODO: remove this
         System.out.println(conn.fetch("select * from cores"));
-        System.out.println(conn.fetch("select * from spare_cores"));
-
+        System.out.println(conn.fetch("select nodes.id, nodes.cores - count(cores.controllable__node) as core_spare " +
+            "from cores " +
+            "join nodes " +
+            "  on nodes.id = cores.controllable__node " +
+            "group by nodes.id, nodes.cores"));
         return true;
     }
 
@@ -171,20 +174,19 @@ public class SimulationRunner {
                 " select * from cores where status = 'PLACED' check current_node = controllable__node";
 
         // Add capacity view
-        conn.execute("create view spare_cores as " +
+        final String capacity_core_view = "create constraint spare_cores as " +
                 "select nodes.id, nodes.cores - count(cores.controllable__node) as core_spare " +
                 "from cores " +
                 "join nodes " +
                 "  on nodes.id = cores.controllable__node " +
-                "group by nodes.id, nodes.cores");
-        System.out.println(conn.fetch("select * from spare_cores"));
+                "group by nodes.id, nodes.cores";
 
         // Create capacity constraint
         final String capacity_core_constraint = "create constraint capacity_core_constraint as " +
-                " select * from spare_cores check core_spare > 0";
+                " select * from spare_cores check core_spare >= 0";
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
-        return Model.build(conn, b.build(), List.of(placed_constraint, capacity_core_constraint));
+        return Model.build(conn, b.build(), List.of(placed_constraint, capacity_core_view, capacity_core_constraint));
     }
 
     private static void printStats(final DSLContext conn) {
