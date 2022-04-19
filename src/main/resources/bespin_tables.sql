@@ -7,9 +7,10 @@ create table applications(
     id integer,
     primary key (id));
 
-create table cores(
+create table allocations(
     id integer,
     application integer,
+    cores integer,
     status varchar(36),
 	current_node integer,
 	controllable__node integer,

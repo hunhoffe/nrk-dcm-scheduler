@@ -6,7 +6,7 @@ import com.vmware.dcm.ModelException;
 
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
-import com.vmware.bespin.scheduler.generated.tables.Cores;
+import com.vmware.bespin.scheduler.generated.tables.Allocations;
 
 import org.jooq.*;
 import org.jooq.Record;
@@ -43,15 +43,16 @@ class Simulation
 
         // TODO: actually calculate turnover
 
-        final Cores coreTable = Cores.CORES;
+        final Allocations allocTable = Allocations.ALLOCATIONS;
         for (int i = 1; i <= 5; i++) {
             // TODO: fix application & id value for core
-            conn.insertInto(coreTable)
-                    .set(coreTable.ID, 256*64 + this.counter*5 + i)
-                    .set(coreTable.APPLICATION, 1)
-                    .set(coreTable.STATUS, "PENDING")
-                    .set(coreTable.CURRENT_NODE, -1)
-                    .set(coreTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+            conn.insertInto(allocTable)
+                    .set(allocTable.ID, 256*64 + this.counter*5 + i)
+                    .set(allocTable.APPLICATION, 1)
+                    .set(allocTable.CORES, 1)
+                    .set(allocTable.STATUS, "PENDING")
+                    .set(allocTable.CURRENT_NODE, -1)
+                    .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                     .execute();
         }
         this.counter++;
@@ -60,7 +61,7 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results = null;
         try {
-            results = model.solve("CORES");
+            results = model.solve("ALLOCATIONS");
         } catch (ModelException e) {
             LOG.info("Got a model exception when solving: {}", e);
             return false;
@@ -71,12 +72,12 @@ class Simulation
         }
 
         final List<Update<?>> updates = new ArrayList<>();
-        LOG.info("new cores placed on:");
+        LOG.info("new allocations placed on:");
         results.forEach(r -> {
                     final Integer coreId = (Integer) r.get("ID");
                     final Integer currentNode = (Integer) r.get("CONTROLLABLE__NODE");
                     updates.add(
-                            conn.update(DSL.table("CORES"))
+                            conn.update(DSL.table("ALLOCATIONS"))
                                     .set(DSL.field("CURRENT_NODE"), currentNode)
                                     .set(DSL.field("CONTROLLABLE__NODE"), currentNode)
                                     .set(DSL.field("STATUS"), "PLACED")
@@ -88,12 +89,12 @@ class Simulation
         conn.batch(updates).execute();
 
         // TODO: remove this
-        System.out.println(conn.fetch("select * from cores"));
-        System.out.println(conn.fetch("select nodes.id, nodes.cores - count(cores.controllable__node) as core_spare " +
-            "from cores " +
-            "join nodes " +
-            "  on nodes.id = cores.controllable__node " +
-            "group by nodes.id, nodes.cores"));
+        System.out.println(conn.fetch("select * from allocations"));
+        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.cores"));
         return true;
     }
 
@@ -153,16 +154,17 @@ public class SimulationRunner {
         // Randomly add core requests for 70% capacity of cluster
         int coreRequests = numNodes * coresPerNode;
         coreRequests = (int) Math.ceil((float) coreRequests * 0.10);
-        final Cores coreTable = Cores.CORES;
+        final Allocations allocTable = Allocations.ALLOCATIONS;
         int node = 0;
         for (int i = 1; i <= coreRequests; i++) {
             node = rand.nextInt(numNodes) + 1;
-            conn.insertInto(coreTable)
-                    .set(coreTable.ID, i)
-                    .set(coreTable.APPLICATION, rand.nextInt(numApplications) + 1)
-                    .set(coreTable.STATUS, "PLACED")
-                    .set(coreTable.CURRENT_NODE, node)
-                    .set(coreTable.CONTROLLABLE__NODE, node)
+            conn.insertInto(allocTable)
+                    .set(allocTable.ID, i)
+                    .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
+                    .set(allocTable.CORES, 1)
+                    .set(allocTable.STATUS, "PLACED")
+                    .set(allocTable.CURRENT_NODE, node)
+                    .set(allocTable.CONTROLLABLE__NODE, node)
                     .execute();
         }
     }
@@ -171,14 +173,14 @@ public class SimulationRunner {
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
         final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from cores where status = 'PLACED' check current_node = controllable__node";
+                " select * from allocations where status = 'PLACED' check current_node = controllable__node";
 
         // Add capacity view
         final String capacity_core_view = "create constraint spare_cores as " +
-                "select nodes.id, nodes.cores - count(cores.controllable__node) as core_spare " +
-                "from cores " +
+                "select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
+                "from allocations " +
                 "join nodes " +
-                "  on nodes.id = cores.controllable__node " +
+                "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.cores";
 
         // Create capacity constraint
