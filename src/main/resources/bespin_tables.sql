@@ -1,14 +1,11 @@
 create table nodes(
     id integer,
     cores integer,
-    memslices integer,
-    primary key (id)
-);
+    primary key (id));
 
 create table applications(
     id integer,
-    primary key (id)
-);
+    primary key (id));
 
 create table cores(
     id integer,
@@ -18,16 +15,4 @@ create table cores(
 	controllable__node integer,
 	foreign key (controllable__node) references nodes(id),
 	foreign key (application) references applications(id),
-	primary key (id)
-);
-
-create table memslices(
-    id integer,
-    application integer,
-    status varchar(36),
-    current_node integer,
-    controllable__node integer,
-    foreign key (controllable__node) references nodes(id),
-    foreign key (application) references applications(id),
-    primary key (id)
-);
+	primary key (id));
