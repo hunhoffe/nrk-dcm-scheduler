@@ -41,21 +41,18 @@ class Simulation
 
     public void createTurnover() {
 
-
-        //final Cores t = Cores.CORES;
-
         // TODO: actually calculate turnover
-        for (int i = 1; i <= 10; i++) {
-            conn.execute(String.format("insert into cores values(%d, 1, 'PENDING', -1, null)", 256*64 + this.counter*10 + i));
-            /*
-            conn.insertInto(t)
-                    .set(t.ID, this.counter*10 + i)
-                    .set(t.APPLICATION, 0)
-                    .set(t.STATUS, "PENDING")
-                    .set(t.CURRENT_NODE, -1)
-                    .set(t.CONTROLLABLE__NODE, (Field<Integer>) null)
+
+        final Cores coreTable = Cores.CORES;
+        for (int i = 1; i <= 5; i++) {
+            // TODO: fix application & id value for core
+            conn.insertInto(coreTable)
+                    .set(coreTable.ID, 256*64 + this.counter*5 + i)
+                    .set(coreTable.APPLICATION, 1)
+                    .set(coreTable.STATUS, "PENDING")
+                    .set(coreTable.CURRENT_NODE, -1)
+                    .set(coreTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                     .execute();
-            */
         }
         this.counter++;
     }
@@ -76,45 +73,24 @@ class Simulation
         final List<Update<?>> updates = new ArrayList<>();
         LOG.info("new cores placed on:");
         results.forEach(r -> {
-                    final Integer componentId = (Integer) r.get("ID");
+                    final Integer coreId = (Integer) r.get("ID");
                     final Integer currentNode = (Integer) r.get("CONTROLLABLE__NODE");
-                    LOG.info("{} ", r);
                     updates.add(
                             conn.update(DSL.table("CORES"))
                                     .set(DSL.field("CURRENT_NODE"), currentNode)
+                                    .set(DSL.field("CONTROLLABLE__NODE"), currentNode)
                                     .set(DSL.field("STATUS"), "PLACED")
-                                    .where(DSL.field("ID").eq(componentId)
+                                    .where(DSL.field("ID").eq(coreId)
                                             .and(DSL.field("STATUS").eq("PENDING")))
             );
                 }
         );
         conn.batch(updates).execute();
+
+        // TODO: remove this
         System.out.println(conn.fetch("select * from cores"));
+        System.out.println(conn.fetch("select * from spare_cores"));
 
-        /*
-
-        final Cores t = Cores.CORES;
-        final List<Update<?>> updates = new ArrayList<>();
-        // Each record is a row in the COMPONENTS table
-        results.forEach(r -> {
-                    final Integer coreId = (Integer) r.get("ID");
-                    final Integer application = (Integer) r.get("APPLICATION");
-                    final String status = (String) r.get("STATUS");
-                    final Integer newNode = (Integer) r.get("CONTROLLABLE__NODE");
-                    if (status.equals("PENDING")) {
-                        LOG.info("{} ", r);
-                        updates.add(
-                                conn.update(t)
-                                        .set(t.CURRENT_NODE, newNode)
-                                        .set(t.STATUS, "PLACED")
-                                        .where(t.ID.eq(coreId).and(t.APPLICATION.eq(application))
-                                        .and(t.STATUS.eq("PENDING")))
-                        );
-                    }
-                }
-        );
-        conn.batch(updates).execute();
-         */
         return true;
     }
 
@@ -173,7 +149,7 @@ public class SimulationRunner {
 
         // Randomly add core requests for 70% capacity of cluster
         int coreRequests = numNodes * coresPerNode;
-        coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
+        coreRequests = (int) Math.ceil((float) coreRequests * 0.10);
         final Cores coreTable = Cores.CORES;
         int node = 0;
         for (int i = 1; i <= coreRequests; i++) {
@@ -194,8 +170,21 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from cores where status = 'PLACED' check current_node = controllable__node";
 
+        // Add capacity view
+        conn.execute("create view spare_cores as " +
+                "select nodes.id, nodes.cores - count(cores.controllable__node) as core_spare " +
+                "from cores " +
+                "join nodes " +
+                "  on nodes.id = cores.controllable__node " +
+                "group by nodes.id, nodes.cores");
+        System.out.println(conn.fetch("select * from spare_cores"));
+
+        // Create capacity constraint
+        final String capacity_core_constraint = "create constraint capacity_core_constraint as " +
+                " select * from spare_cores check core_spare > 0";
+
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
-        return Model.build(conn, b.build(), List.of(placed_constraint));
+        return Model.build(conn, b.build(), List.of(placed_constraint, capacity_core_constraint));
     }
 
     private static void printStats(final DSLContext conn) {
@@ -209,8 +198,8 @@ public class SimulationRunner {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
         int numSteps = 10;
-        int numNodes = 64;
-        int coresPerNode = 128;
+        int numNodes = 5;
+        int coresPerNode = 10;
         int memSlicesPerNode = 256;
 
         // create Options object
@@ -279,7 +268,8 @@ public class SimulationRunner {
 
         LOG.debug("Creating a simulation with parameters:\n nodes : {}, coresPerNode : {}, memSlicesPerNode : {} ",
                 numNodes, coresPerNode, memSlicesPerNode);
-        Simulation sim = new Simulation(createModel(conn), conn);
+        Model model = createModel(conn);
+        Simulation sim = new Simulation(model, conn);
 
         for (; i < numSteps; i++) {
             LOG.info("Simulation step: {}", i);
