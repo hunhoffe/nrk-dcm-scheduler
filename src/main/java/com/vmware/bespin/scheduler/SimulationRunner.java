@@ -235,6 +235,10 @@ public class SimulationRunner {
         final String capacity_mem_constraint = "create constraint capacity_mem_constraint as " +
                 " select * from spare_mem check mem_spare >= 0";
 
+        // TODO: create load balancing constraint across nodes
+
+        // TODO: create application affinity/locality constraint
+
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
