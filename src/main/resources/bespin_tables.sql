@@ -1,6 +1,7 @@
 create table nodes(
     id integer,
     cores integer,
+    memslices integer,
     primary key (id));
 
 create table applications(
@@ -11,6 +12,7 @@ create table allocations(
     id integer,
     application integer,
     cores integer,
+    memslices integer,
     status varchar(36),
 	current_node integer,
 	controllable__node integer,

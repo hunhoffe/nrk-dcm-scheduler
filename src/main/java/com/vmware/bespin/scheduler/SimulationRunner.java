@@ -47,9 +47,22 @@ class Simulation
         for (int i = 1; i <= 5; i++) {
             // TODO: fix application & id value for core
             conn.insertInto(allocTable)
-                    .set(allocTable.ID, 256*64 + this.counter*5 + i)
+                    .set(allocTable.ID, 256*64 + this.counter*10 + i)
                     .set(allocTable.APPLICATION, 1)
                     .set(allocTable.CORES, 1)
+                    .set(allocTable.MEMSLICES, 0)
+                    .set(allocTable.STATUS, "PENDING")
+                    .set(allocTable.CURRENT_NODE, -1)
+                    .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                    .execute();
+        }
+        for (int i = 1; i <= 5; i++) {
+            // TODO: fix application & id value for core
+            conn.insertInto(allocTable)
+                    .set(allocTable.ID, 256*64 + this.counter*10 + 5 + i)
+                    .set(allocTable.APPLICATION, 1)
+                    .set(allocTable.CORES, 0)
+                    .set(allocTable.MEMSLICES, 1)
                     .set(allocTable.STATUS, "PENDING")
                     .set(allocTable.CURRENT_NODE, -1)
                     .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
@@ -95,6 +108,11 @@ class Simulation
                 "join nodes " +
                 "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.cores"));
+        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.memslices"));
         return true;
     }
 
@@ -133,11 +151,12 @@ public class SimulationRunner {
         setupDb(conn);
 
         // Add nodes with specified cores
-        final Nodes t = Nodes.NODES;
+        final Nodes nodeTable = Nodes.NODES;
         for (int i = 1; i <= numNodes; i++) {
-            conn.insertInto(t)
-                    .set(t.ID, i)
-                    .set(t.CORES, coresPerNode)
+            conn.insertInto(nodeTable)
+                    .set(nodeTable.ID, i)
+                    .set(nodeTable.CORES, coresPerNode)
+                    .set(nodeTable.MEMSLICES, memSlicesPerNode)
                     .execute();
         }
 
@@ -162,6 +181,23 @@ public class SimulationRunner {
                     .set(allocTable.ID, i)
                     .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
                     .set(allocTable.CORES, 1)
+                    .set(allocTable.MEMSLICES, 0)
+                    .set(allocTable.STATUS, "PLACED")
+                    .set(allocTable.CURRENT_NODE, node)
+                    .set(allocTable.CONTROLLABLE__NODE, node)
+                    .execute();
+        }
+
+        // Randomly add memslice requests for 70% capacity of cluster
+        int memRequests = numNodes * memSlicesPerNode;
+        memRequests = (int) Math.ceil((float) memRequests * 0.10);
+        for (int i = 1; i <= memRequests; i++) {
+            node = rand.nextInt(numNodes) + 1;
+            conn.insertInto(allocTable)
+                    .set(allocTable.ID, coreRequests + i)
+                    .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
+                    .set(allocTable.CORES, 0)
+                    .set(allocTable.MEMSLICES, 1)
                     .set(allocTable.STATUS, "PLACED")
                     .set(allocTable.CURRENT_NODE, node)
                     .set(allocTable.CONTROLLABLE__NODE, node)
@@ -175,7 +211,7 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from allocations where status = 'PLACED' check current_node = controllable__node";
 
-        // Add capacity view
+        // Add capacity core view
         final String capacity_core_view = "create constraint spare_cores as " +
                 "select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
                 "from allocations " +
@@ -183,12 +219,30 @@ public class SimulationRunner {
                 "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.cores";
 
-        // Create capacity constraint
+        // Create capacity core constraint
         final String capacity_core_constraint = "create constraint capacity_core_constraint as " +
                 " select * from spare_cores check core_spare >= 0";
 
+        // Add capacity core view
+        final String capacity_mem_view = "create constraint spare_mem as " +
+                "select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.memslices";
+
+        // Create capacity core constraint
+        final String capacity_mem_constraint = "create constraint capacity_mem_constraint as " +
+                " select * from spare_mem check mem_spare >= 0";
+
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
-        return Model.build(conn, b.build(), List.of(placed_constraint, capacity_core_view, capacity_core_constraint));
+        return Model.build(conn, b.build(), List.of(
+                placed_constraint,
+                capacity_core_view,
+                capacity_core_constraint,
+                capacity_mem_view,
+                capacity_mem_constraint
+        ));
     }
 
     private static void printStats(final DSLContext conn) {
@@ -204,7 +258,7 @@ public class SimulationRunner {
         int numSteps = 10;
         int numNodes = 5;
         int coresPerNode = 10;
-        int memSlicesPerNode = 256;
+        int memSlicesPerNode = 5;
 
         // create Options object
         Options options = new Options();
