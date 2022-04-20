@@ -211,41 +211,50 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from allocations where status = 'PLACED' check current_node = controllable__node";
 
-        // Add capacity core view
+        // Capacity core view
         final String capacity_core_view = "create constraint spare_cores as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
+                "select nodes.id, nodes.cores - sum(allocations.cores) as cores_spare " +
                 "from allocations " +
                 "join nodes " +
                 "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.cores";
 
-        // Create capacity core constraint
+        // Capacity core constraint (e.g., can only use what is available on each node)
         final String capacity_core_constraint = "create constraint capacity_core_constraint as " +
-                " select * from spare_cores check core_spare >= 0";
+                " select * from spare_cores check cores_spare >= 0";
 
-        // Add capacity core view
-        final String capacity_mem_view = "create constraint spare_mem as " +
-                "select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
+        // Capacity memslice view
+        final String capacity_memslice_view = "create constraint spare_memslices as " +
+                "select nodes.id, nodes.memslices - sum(allocations.memslices) as memslices_spare " +
                 "from allocations " +
                 "join nodes " +
                 "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.memslices";
 
-        // Create capacity core constraint
-        final String capacity_mem_constraint = "create constraint capacity_mem_constraint as " +
-                " select * from spare_mem check mem_spare >= 0";
+        // Capacity memslice constraint (e.g., can only use what is available on each node)
+        final String capacity_memslice_constraint = "create constraint capacity_memslice_constraint as " +
+                " select * from spare_memslices check memslices_spare >= 0";
 
-        // TODO: create load balancing constraint across nodes
+        // Create load balancing constraint across nodes for cores and memslices
+        final String node_load_cores = "create constraint node_load_cores as " +
+                "select * from spare_cores " +
+                "maximize min(cores_spare)";
+        final String node_load_memslices = "create constraint node_load_memslices as " +
+                "select * from spare_memslices " +
+                "maximize min(memslices_spare)";
 
         // TODO: create application affinity/locality constraint
+
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
                 capacity_core_view,
                 capacity_core_constraint,
-                capacity_mem_view,
-                capacity_mem_constraint
+                capacity_memslice_view,
+                capacity_memslice_constraint,
+                node_load_cores,
+                node_load_memslices
         ));
     }
 
