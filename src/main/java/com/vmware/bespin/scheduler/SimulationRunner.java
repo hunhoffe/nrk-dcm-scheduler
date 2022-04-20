@@ -113,6 +113,11 @@ class Simulation
                 "join nodes " +
                 "  on nodes.id = allocations.controllable__node " +
                 "group by nodes.id, nodes.memslices"));
+        System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
+                "from allocations " +
+                "join applications " +
+                "  on applications.id = allocations.application " +
+                "group by applications.id"));
         return true;
     }
 
@@ -243,8 +248,16 @@ public class SimulationRunner {
                 "select * from spare_memslices " +
                 "maximize min(memslices_spare)";
 
-        // TODO: create application affinity/locality constraint
-
+        // Minimize number of nodes per application (e.g., maximize locality)
+        final String application_num_nodes_view = "create constraint application_num_nodes as " +
+                "select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
+                "from allocations " +
+                "join applications " +
+                "  on applications.id = allocations.application " +
+                "group by applications.id";
+        final String application_locality_constraint = "create constraint application_locality_constraint as " +
+                "select * from application_num_nodes " +
+                "maximize -1*sum(num_nodes)";
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
         return Model.build(conn, b.build(), List.of(
@@ -254,7 +267,9 @@ public class SimulationRunner {
                 capacity_memslice_view,
                 capacity_memslice_constraint,
                 node_load_cores,
-                node_load_memslices
+                node_load_memslices,
+                application_num_nodes_view,
+                application_locality_constraint
         ));
     }
 
