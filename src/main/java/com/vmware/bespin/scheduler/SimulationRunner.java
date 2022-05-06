@@ -241,7 +241,7 @@ public class SimulationRunner {
 
         // Randomly add core requests for 70% capacity of cluster
         int coreRequests = numNodes * coresPerNode;
-        coreRequests = (int) Math.ceil((float) coreRequests * 0.10);
+        coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
         final Allocations allocTable = Allocations.ALLOCATIONS;
         int node = 0;
         for (int i = 1; i <= coreRequests; i++) {
@@ -259,7 +259,7 @@ public class SimulationRunner {
 
         // Randomly add memslice requests for 70% capacity of cluster
         int memRequests = numNodes * memSlicesPerNode;
-        memRequests = (int) Math.ceil((float) memRequests * 0.10);
+        memRequests = (int) Math.ceil((float) memRequests * 0.70);
         for (int i = 1; i <= memRequests; i++) {
             node = rand.nextInt(numNodes) + 1;
             conn.insertInto(allocTable)
@@ -361,9 +361,9 @@ public class SimulationRunner {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
         int numSteps = 10;
-        int numNodes = 5;
-        int coresPerNode = 10;
-        int memSlicesPerNode = 5;
+        int numNodes = 64;
+        int coresPerNode = 128;
+        int memSlicesPerNode = 128;
 
         // create Options object
         Options options = new Options();
@@ -386,7 +386,7 @@ public class SimulationRunner {
                 .build();
         Option memSlicesPerNodeOption = Option.builder(MEM_SLICES_PER_NODE_OPTION)
                 .hasArg()
-                .desc("number of 2 MB memory slices per node.\nDefault: 256")
+                .desc("number of 2 MB memory slices per node.\nDefault: 128")
                 .type(Integer.class)
                 .build();
 
