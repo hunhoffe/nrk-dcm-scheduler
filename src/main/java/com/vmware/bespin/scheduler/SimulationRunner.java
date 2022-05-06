@@ -62,9 +62,10 @@ class Simulation
             if (usedCores > minCoreAllocations) {
                 if (usedCores >  maxCoreAllocations || this.rand.nextBoolean()) {
                     // delete core allocation
-                    int rowToDelete = this.rand.nextInt(usedCores);
                     final String allocations = "select * from allocations where allocations.cores > 0";
-                    rowToDelete = (int) this.conn.fetch(allocations).get(rowToDelete).getValue(0);
+                    Result<Record> results = this.conn.fetch(allocations);
+                    int rowToDelete = this.rand.nextInt(results.size());
+                    rowToDelete = (int) results.get(rowToDelete).getValue(0);
                     conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
                 }
             }
@@ -97,9 +98,10 @@ class Simulation
             if (usedMemslices > minMemsliceAllocations) {
                 if (usedMemslices >  maxMemsliceAllocations || this.rand.nextBoolean()) {
                     // delete memslice allocation
-                    int rowToDelete = this.rand.nextInt(usedMemslices); // TODO: should be count of memslice allocations
                     final String allocations = "select * from allocations where allocations.memslices > 0";
-                    rowToDelete = (int) this.conn.fetch(allocations).get(rowToDelete).getValue(0);
+                    Result<Record> results = this.conn.fetch(allocations);
+                    int rowToDelete = this.rand.nextInt(results.size());
+                    rowToDelete = (int) results.get(rowToDelete).getValue(0);
                     conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
                 }
             }
