@@ -29,46 +29,94 @@ class Simulation
 {
     final Model model;
     final DSLContext conn;
-    private int counter;
 
     private static final Logger LOG = LogManager.getLogger(Simulation.class);
+
+    // below are percentages
+    static final int MIN_CAPACITY = 65;
+    static final int MAX_CAPACITY = 95;
+    static final int MIN_TURNOVER = 1;
+    static final int MAX_TURNOVER = 15;
+
+    private static final Random rand = new Random();
 
     Simulation(Model model, DSLContext conn) {
         this.model = model;
         this.conn = conn;
-        this.counter = 1;
     }
 
     public void createTurnover() {
-
-        // TODO: actually calculate turnover
-
         final Allocations allocTable = Allocations.ALLOCATIONS;
-        for (int i = 1; i <= 5; i++) {
-            // TODO: fix application & id value for core
-            conn.insertInto(allocTable)
-                    .set(allocTable.ID, 256*64 + this.counter*10 + i)
-                    .set(allocTable.APPLICATION, 1)
-                    .set(allocTable.CORES, 1)
-                    .set(allocTable.MEMSLICES, 0)
-                    .set(allocTable.STATUS, "PENDING")
-                    .set(allocTable.CURRENT_NODE, -1)
-                    .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
-                    .execute();
+
+        int totalCores = this.totalCores();
+        int coreTurnover = this.MIN_TURNOVER + this.rand.nextInt(this.MAX_TURNOVER - this.MIN_TURNOVER);
+        int coreAllocationsToMake = (int) Math.ceil((((double) coreTurnover) / 100) * totalCores);
+        int maxCoreAllocations = (int) Math.ceil((((double) this.MAX_CAPACITY) / 100) * totalCores);
+        int minCoreAllocations = (int) Math.ceil((((double) this.MIN_CAPACITY) / 100) * totalCores);
+        System.out.println(String.format("Core Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d",
+                coreTurnover, coreAllocationsToMake, maxCoreAllocations, minCoreAllocations));
+
+        int turnoverCounter = 0;
+        while (turnoverCounter < coreAllocationsToMake) {
+            int usedCores = this.usedCores();
+            if (usedCores > minCoreAllocations) {
+                if (usedCores >  maxCoreAllocations || this.rand.nextBoolean()) {
+                    // delete core allocation
+                    int rowToDelete = this.rand.nextInt(usedCores);
+                    final String allocations = "select * from allocations where allocations.cores > 0";
+                    rowToDelete = (int) this.conn.fetch(allocations).get(rowToDelete).getValue(0);
+                    conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
+                }
+            }
+            // Add an allocation, count as turnover
+            if (usedCores < maxCoreAllocations) {
+                conn.insertInto(allocTable)
+                        .set(allocTable.ID, this.getNextAllocationId())
+                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
+                        .set(allocTable.CORES, 1)
+                        .set(allocTable.MEMSLICES, 0)
+                        .set(allocTable.STATUS, "PENDING")
+                        .set(allocTable.CURRENT_NODE, -1)
+                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                        .execute();
+                turnoverCounter++;
+            }
         }
-        for (int i = 1; i <= 5; i++) {
-            // TODO: fix application & id value for core
-            conn.insertInto(allocTable)
-                    .set(allocTable.ID, 256*64 + this.counter*10 + 5 + i)
-                    .set(allocTable.APPLICATION, 1)
-                    .set(allocTable.CORES, 0)
-                    .set(allocTable.MEMSLICES, 1)
-                    .set(allocTable.STATUS, "PENDING")
-                    .set(allocTable.CURRENT_NODE, -1)
-                    .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
-                    .execute();
+
+        int totalMemslices = this.totalMemslices();
+        int memsliceTurnover = this.MIN_TURNOVER + this.rand.nextInt(this.MAX_TURNOVER - this.MIN_TURNOVER);
+        int memsliceAllocationsToMake = (int) Math.ceil((((double) memsliceTurnover) / 100) * totalMemslices);
+        int maxMemsliceAllocations = (int) Math.ceil((((double) this.MAX_CAPACITY) / 100) * totalMemslices);
+        int minMemsliceAllocations = (int) Math.ceil((((double) this.MIN_CAPACITY) / 100) * totalMemslices);
+        System.out.println(String.format("Memslice Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d",
+                memsliceTurnover, memsliceAllocationsToMake, maxMemsliceAllocations, minMemsliceAllocations));
+
+        turnoverCounter = 0;
+        while (turnoverCounter < memsliceAllocationsToMake) {
+            int usedMemslices = this.usedMemslices();
+            if (usedMemslices > minMemsliceAllocations) {
+                if (usedMemslices >  maxMemsliceAllocations || this.rand.nextBoolean()) {
+                    // delete memslice allocation
+                    int rowToDelete = this.rand.nextInt(usedMemslices); // TODO: should be count of memslice allocations
+                    final String allocations = "select * from allocations where allocations.memslices > 0";
+                    rowToDelete = (int) this.conn.fetch(allocations).get(rowToDelete).getValue(0);
+                    conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
+                }
+            }
+            // Add an allocation, count as turnover
+            if (usedMemslices < maxCoreAllocations) {
+                conn.insertInto(allocTable)
+                        .set(allocTable.ID, this.getNextAllocationId())
+                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
+                        .set(allocTable.CORES, 0)
+                        .set(allocTable.MEMSLICES, 1)
+                        .set(allocTable.STATUS, "PENDING")
+                        .set(allocTable.CURRENT_NODE, -1)
+                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                        .execute();
+                turnoverCounter++;
+            }
         }
-        this.counter++;
     }
 
     public boolean runModelAndUpdateDB() {
@@ -100,30 +148,44 @@ class Simulation
                 }
         );
         conn.batch(updates).execute();
-
-        // TODO: remove this
-        System.out.println(conn.fetch("select * from allocations"));
-        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
-                "group by nodes.id, nodes.cores"));
-        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
-                "group by nodes.id, nodes.memslices"));
-        System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
-                "from allocations " +
-                "join applications " +
-                "  on applications.id = allocations.application " +
-                "group by applications.id"));
         return true;
     }
 
     public boolean checkForCapacityViolation() {
         // TODO: check per-node capacity
         return false;
+    }
+
+    private int usedCores() {
+        final String used_cores = "select sum(allocations.cores) as usedCores from allocations";
+        return ((Long) this.conn.fetch(used_cores).get(0).getValue(0)).intValue();
+    }
+
+    private int totalCores() {
+        final String total_cores = "select sum(nodes.cores) from nodes";
+        return ((Long) this.conn.fetch(total_cores).get(0).getValue(0)).intValue();
+    }
+
+    private int usedMemslices() {
+        final String used_memslices = "select sum(allocations.memslices) as usedMemslices from allocations";
+        return ((Long) this.conn.fetch(used_memslices).get(0).getValue(0)).intValue();
+    }
+
+    private int totalMemslices() {
+        final String total_memslices = "select sum(nodes.memslices) from nodes";
+        return ((Long) this.conn.fetch(total_memslices).get(0).getValue(0)).intValue();
+    }
+
+    private int getNextAllocationId() {
+        final String highest_allocation_id = "select max(allocations.id) from allocations";
+        return (int) this.conn.fetch(highest_allocation_id).get(0).getValue(0) + 1;
+    }
+
+    private int chooseRandomApplication() {
+        final String application_ids = "select id from applications";
+        Result<Record> results = this.conn.fetch(application_ids);
+        int rowNum = this.rand.nextInt(results.size());
+        return (int) results.get(rowNum).getValue(0);
     }
 }
 
@@ -274,8 +336,21 @@ public class SimulationRunner {
     }
 
     private static void printStats(final DSLContext conn) {
-        // TODO: write this method
-        //LOG.info("Total capacity provisioned: {}", conn.fetch("select SUM(max_capacity) from components"));
+        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.cores"));
+        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.memslices"));
+        System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
+                "from allocations " +
+                "join applications " +
+                "  on applications.id = allocations.application " +
+                "group by applications.id"));
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
