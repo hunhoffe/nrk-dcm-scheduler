@@ -36,7 +36,7 @@ class Simulation
     static final int MIN_CAPACITY = 65;
     static final int MAX_CAPACITY = 95;
     static final int MIN_TURNOVER = 1;
-    static final int MAX_TURNOVER = 15;
+    static final int MAX_TURNOVER = 5;
 
     private static final Random rand = new Random();
 
@@ -60,7 +60,7 @@ class Simulation
         while (turnoverCounter < coreAllocationsToMake) {
             int usedCores = this.usedCores();
             if (usedCores > minCoreAllocations) {
-                if (usedCores >  maxCoreAllocations || this.rand.nextBoolean()) {
+                if (usedCores >= maxCoreAllocations || this.rand.nextBoolean()) {
                     // delete core allocation
                     final String allocations = "select * from allocations where allocations.cores > 0";
                     Result<Record> results = this.conn.fetch(allocations);
@@ -96,7 +96,7 @@ class Simulation
         while (turnoverCounter < memsliceAllocationsToMake) {
             int usedMemslices = this.usedMemslices();
             if (usedMemslices > minMemsliceAllocations) {
-                if (usedMemslices >  maxMemsliceAllocations || this.rand.nextBoolean()) {
+                if (usedMemslices >= maxMemsliceAllocations || this.rand.nextBoolean()) {
                     // delete memslice allocation
                     final String allocations = "select * from allocations where allocations.memslices > 0";
                     Result<Record> results = this.conn.fetch(allocations);
@@ -106,7 +106,7 @@ class Simulation
                 }
             }
             // Add an allocation, count as turnover
-            if (usedMemslices < maxCoreAllocations) {
+            if (usedMemslices < maxMemsliceAllocations) {
                 conn.insertInto(allocTable)
                         .set(allocTable.ID, this.getNextAllocationId())
                         .set(allocTable.APPLICATION, this.chooseRandomApplication())
@@ -124,6 +124,21 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results = null;
         try {
+            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
+                    "from allocations " +
+                    "join nodes " +
+                    "  on nodes.id = allocations.controllable__node " +
+                    "group by nodes.id, nodes.cores"));
+            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
+                    "from allocations " +
+                    "join nodes " +
+                    "  on nodes.id = allocations.controllable__node " +
+                    "group by nodes.id, nodes.memslices"));
+            System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
+                    "from allocations " +
+                    "join applications " +
+                    "  on applications.id = allocations.application " +
+                    "group by applications.id"));
             results = model.solve("ALLOCATIONS");
         } catch (ModelException e) {
             LOG.info("Got a model exception when solving: {}", e);
@@ -244,8 +259,15 @@ public class SimulationRunner {
         coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
         final Allocations allocTable = Allocations.ALLOCATIONS;
         int node = 0;
+        int nodeCapacity = 0;
+        int nodesUsed = 1;
         for (int i = 1; i <= coreRequests; i++) {
-            node = rand.nextInt(numNodes) + 1;
+            while (nodeCapacity <= nodesUsed ) {
+                node = rand.nextInt(numNodes) + 1;
+                nodeCapacity = (int) conn.fetch(String.format("select cores from nodes where id = %d", node)).getValues(0).get(0);
+                nodesUsed = conn.fetch(String.format("select * from allocations where cores >= 1 and current_node = %d", node)).size();
+                System.out.println(String.format("Capacity for node %d is %d, used cores is %d", node, nodeCapacity, nodesUsed));
+            }
             conn.insertInto(allocTable)
                     .set(allocTable.ID, i)
                     .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
@@ -255,13 +277,23 @@ public class SimulationRunner {
                     .set(allocTable.CURRENT_NODE, node)
                     .set(allocTable.CONTROLLABLE__NODE, node)
                     .execute();
+            nodeCapacity = 0;
+            nodesUsed = 1;
         }
 
         // Randomly add memslice requests for 70% capacity of cluster
         int memRequests = numNodes * memSlicesPerNode;
         memRequests = (int) Math.ceil((float) memRequests * 0.70);
+        int memCapacity = 0;
+        int memUsed = 1;
         for (int i = 1; i <= memRequests; i++) {
             node = rand.nextInt(numNodes) + 1;
+            while (memCapacity <= memUsed ) {
+                node = rand.nextInt(numNodes) + 1;
+                memCapacity = (int) conn.fetch(String.format("select memslices from nodes where id = %d", node)).getValues(0).get(0);
+                memUsed = conn.fetch(String.format("select * from allocations where memslices >= 1 and current_node = %d", node)).size();
+                System.out.println(String.format("Capacity for node is %d, used memslices is %d", nodeCapacity, nodesUsed));
+            }
             conn.insertInto(allocTable)
                     .set(allocTable.ID, coreRequests + i)
                     .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
@@ -271,6 +303,8 @@ public class SimulationRunner {
                     .set(allocTable.CURRENT_NODE, node)
                     .set(allocTable.CONTROLLABLE__NODE, node)
                     .execute();
+            memCapacity = 0;
+            memUsed = 1;
         }
     }
 
@@ -361,9 +395,9 @@ public class SimulationRunner {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
         int numSteps = 10;
-        int numNodes = 64;
-        int coresPerNode = 128;
-        int memSlicesPerNode = 128;
+        int numNodes = 10;
+        int coresPerNode = 10;
+        int memSlicesPerNode = 10;
 
         // create Options object
         Options options = new Options();
