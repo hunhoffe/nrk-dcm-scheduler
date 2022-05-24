@@ -1,18 +1,19 @@
 package com.vmware.bespin.scheduler;
 
-import com.vmware.dcm.SolverException;
 import com.vmware.dcm.backend.ortools.OrToolsSolver;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
 
-import com.vmware.bespin.scheduler.generated.tables.Nodes;
+import com.vmware.bespin.scheduler.generated.tables.AllocationState;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
+import com.vmware.bespin.scheduler.generated.tables.Nodes;
 import com.vmware.bespin.scheduler.generated.tables.PendingAllocations;
 
 import org.jooq.*;
 import org.jooq.Record;
 import org.jooq.impl.DSL;
+import static org.jooq.impl.DSL.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.commons.cli.*;
@@ -21,6 +22,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +50,9 @@ class Simulation
     }
 
     public void createTurnover() {
+
+        // TODO: add application creation/removal to turnover
+
         final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
 
         int totalCores = this.totalCores();
@@ -310,58 +315,102 @@ public class SimulationRunner {
                     .execute();
         }
 
-        // Randomly add core requests for 70% capacity of cluster
+        // Randomly add core requests for 70% capacity of cluster cores
         int coreRequests = numNodes * coresPerNode;
         coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
-        final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
+        final AllocationState allocStateTable = AllocationState.ALLOCATION_STATE;
         int node = 0;
-        int nodeCapacity = 0;
-        int nodesUsed = 1;
+        int nodesUsed = coresPerNode;
         for (int i = 1; i <= coreRequests; i++) {
-            while (nodeCapacity <= nodesUsed ) {
+            int application = rand.nextInt(numApplications) + 1;
+            while (coresPerNode <= nodesUsed ) {
                 node = rand.nextInt(numNodes) + 1;
-                nodeCapacity = (int) conn.fetch(String.format("select cores from nodes where id = %d", node)).getValues(0).get(0);
-                nodesUsed = conn.fetch(String.format("select * from pending_allocations where cores >= 1 and current_node = %d", node)).size();
-                //System.out.println(String.format("Capacity for node %d is %d, used cores is %d", node, nodeCapacity, nodesUsed));
+                Record1<BigDecimal> record = conn
+                        .select(sum(allocStateTable.CORES))
+                        .from(allocStateTable)
+                        .where(allocStateTable.NODE.eq(node))
+                        .fetchOne();
+                try {
+                    nodesUsed = Integer.getInteger(record.getValue(record.field1()).toString());
+                } catch (NullPointerException e) {
+                    nodesUsed = 0;
+                }
             }
-            conn.insertInto(allocTable)
-                    .set(allocTable.ID, i)
-                    .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
-                    .set(allocTable.CORES, 1)
-                    .set(allocTable.MEMSLICES, 0)
-                    .set(allocTable.STATUS, "PLACED")
-                    .set(allocTable.CURRENT_NODE, node)
-                    .set(allocTable.CONTROLLABLE__NODE, node)
-                    .execute();
-            nodeCapacity = 0;
-            nodesUsed = 1;
+
+            if (!conn.fetchExists(conn.selectFrom(allocStateTable).
+                    where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application))))) {
+                conn.insertInto(allocStateTable)
+                        .set(allocStateTable.APPLICATION, application)
+                        .set(allocStateTable.NODE, node)
+                        .set(allocStateTable.MEMSLICES, 0)
+                        .set(allocStateTable.CORES, 1)
+                        .execute();
+            } else {
+                conn.update(allocStateTable)
+                        .set(allocStateTable.CORES, allocStateTable.CORES.plus(1))
+                        .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
+                        .execute();
+            }
+            nodesUsed = coresPerNode;
         }
 
-        // Randomly add memslice requests for 70% capacity of cluster
+        // Randomly add memory requests for 70% capacity of cluster memory
+        // Only add memslices to nodes that are already running cores for the application
         int memRequests = numNodes * memslicesPerNode;
         memRequests = (int) Math.ceil((float) memRequests * 0.70);
-        int memCapacity = 0;
-        int memUsed = 1;
-        for (int i = 1; i <= memRequests; i++) {
-            node = rand.nextInt(numNodes) + 1;
-            while (memCapacity <= memUsed ) {
-                node = rand.nextInt(numNodes) + 1;
-                memCapacity = (int) conn.fetch(String.format("select memslices from nodes where id = %d", node)).getValues(0).get(0);
-                memUsed = conn.fetch(String.format("select * from pending_allocations where memslices >= 1 and current_node = %d", node)).size();
-                //System.out.println(String.format("Capacity for node %d is %d, used memslices is %d", node, memCapacity, memUsed));
+        int i = 1;
+        while (i <= memRequests) {
+            int application = rand.nextInt(numApplications) + 1;
+
+            // Randomly choose a node already allocated cores for this application to add memory to
+            List<?> nodeOptions = conn.select(allocStateTable.NODE)
+                    .from(allocStateTable)
+                    .where(allocStateTable.APPLICATION.eq(application))
+                    .fetch()
+                    .getValues(0);
+
+            // Iterate over options starting with random index
+            if (nodeOptions.size() == 0) {
+                break;
             }
-            conn.insertInto(allocTable)
-                    .set(allocTable.ID, coreRequests + i)
-                    .set(allocTable.APPLICATION, rand.nextInt(numApplications) + 1)
-                    .set(allocTable.CORES, 0)
-                    .set(allocTable.MEMSLICES, 1)
-                    .set(allocTable.STATUS, "PLACED")
-                    .set(allocTable.CURRENT_NODE, node)
-                    .set(allocTable.CONTROLLABLE__NODE, node)
-                    .execute();
-            memCapacity = 0;
-            memUsed = 1;
+            int indexStart = rand.nextInt(nodeOptions.size());
+            int index = -1;
+            boolean done = false;
+            int memslicesUsed = 0;
+            while (!done && index != indexStart ) {
+                if (index == -1) {
+                    index = indexStart;
+                }
+
+                // Calculate available memory at that node
+                node = (int) nodeOptions.get(index);
+                Record1<BigDecimal> record = conn
+                        .select(sum(allocStateTable.MEMSLICES))
+                        .from(allocStateTable)
+                        .where(allocStateTable.NODE.eq(node))
+                        .fetchOne();
+                try {
+                    memslicesUsed = Integer.getInteger(record.getValue(record.field1()).toString());
+                } catch (NullPointerException e) {
+                    memslicesUsed = 0;
+                }
+
+                // If there is available
+                if (memslicesUsed < memslicesPerNode) {
+                    conn.update(allocStateTable)
+                            .set(allocStateTable.MEMSLICES, allocStateTable.MEMSLICES.plus(1))
+                            .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
+                            .execute();
+                    done = true;
+                    i++;
+                }
+
+                index = (index + 1) % nodeOptions.size();
+            }
         }
+
+        System.out.println(conn.fetch("select * from allocation_state"));
+        System.exit(1);
     }
 
     private static Model createModel(final DSLContext conn) {

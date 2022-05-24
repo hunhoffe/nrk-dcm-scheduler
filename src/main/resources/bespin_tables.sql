@@ -9,14 +9,13 @@ create table applications(
     primary key (id));
 
 create table allocation_state(
-    id integer,
     application integer,
     node integer,
     cores integer,
     memslices integer,
 	foreign key (node) references nodes(id),
 	foreign key (application) references applications(id),
-	primary key (id));
+	primary key (application, node));
 
 create table pending_allocations(
     id integer,
