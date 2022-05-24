@@ -8,7 +8,7 @@ import com.vmware.dcm.SolverException;
 
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
-import com.vmware.bespin.scheduler.generated.tables.Allocations;
+import com.vmware.bespin.scheduler.generated.tables.PendingAllocations;
 
 import org.jooq.*;
 import org.jooq.Record;
@@ -48,7 +48,7 @@ class Simulation
     }
 
     public void createTurnover() {
-        final Allocations allocTable = Allocations.ALLOCATIONS;
+        final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
 
         int totalCores = this.totalCores();
         int coreTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
@@ -64,7 +64,7 @@ class Simulation
             if (usedCores > minCoreAllocations) {
                 if (usedCores >= maxCoreAllocations || rand.nextBoolean()) {
                     // delete core allocation
-                    final String allocations = "select * from allocations where allocations.cores > 0";
+                    final String allocations = "select * from pending_allocations where pending_allocations.cores > 0";
                     Result<Record> results = this.conn.fetch(allocations);
                     int rowToDelete = rand.nextInt(results.size());
                     rowToDelete = (int) results.get(rowToDelete).getValue(0);
@@ -100,7 +100,7 @@ class Simulation
             if (usedMemslices > minMemsliceAllocations) {
                 if (usedMemslices >= maxMemsliceAllocations || rand.nextBoolean()) {
                     // delete memslice allocation
-                    final String allocations = "select * from allocations where allocations.memslices > 0";
+                    final String allocations = "select * from pending_allocations where pending_allocations.memslices > 0";
                     Result<Record> results = this.conn.fetch(allocations);
                     int rowToDelete = rand.nextInt(results.size());
                     rowToDelete = (int) results.get(rowToDelete).getValue(0);
@@ -131,22 +131,22 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results;
         try {
-            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
+                    "from pending_allocations " +
                     "join nodes " +
-                    "  on nodes.id = allocations.controllable__node " +
+                    "  on nodes.id = pending_allocations.controllable__node " +
                     "group by nodes.id, nodes.cores"));
-            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as mem_spare " +
+                    "from pending_allocations " +
                     "join nodes " +
-                    "  on nodes.id = allocations.controllable__node " +
+                    "  on nodes.id = pending_allocations.controllable__node " +
                     "group by nodes.id, nodes.memslices"));
-            System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
+                    "from pending_allocations " +
                     "join applications " +
-                    "  on applications.id = allocations.application " +
+                    "  on applications.id = pending_allocations.application " +
                     "group by applications.id"));
-            results = model.solve("ALLOCATIONS");
+            results = model.solve("PENDING_ALLOCATIONS");
         } catch (ModelException e) {
             System.out.println(String.format("Got a model exception when solving: %s", e.toString()));
             return false;
@@ -154,33 +154,32 @@ class Simulation
             System.out.println(String.format("Got a model exception when solving: {}", e.toString()));
             System.out.println(this.checkForCapacityViolation());
             System.out.print("Free cores per node:");
-            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
+                    "from pending_allocations " +
                     "join nodes " +
-                    "  on nodes.id = allocations.controllable__node " +
+                    "  on nodes.id = pending_allocations.controllable__node " +
                     "group by nodes.id, nodes.cores"));
             System.out.print("Free memslices per node:");
-            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as mem_spare " +
+                    "from pending_allocations " +
                     "join nodes " +
-                    "  on nodes.id = allocations.controllable__node " +
+                    "  on nodes.id = pending_allocations.controllable__node " +
                     "group by nodes.id, nodes.memslices"));
             System.out.print("Nodes per application:");
-            System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
-                    "from allocations " +
+            System.out.println(conn.fetch("select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
+                    "from pending_allocations " +
                     "join applications " +
-                    "  on applications.id = allocations.application " +
+                    "  on applications.id = pending_allocations.application " +
                     "group by applications.id"));
             return false;
         }
 
         final List<Update<?>> updates = new ArrayList<>();
-        LOG.info("new allocations placed on:");
         results.forEach(r -> {
                     final Integer coreId = (Integer) r.get("ID");
                     final Integer currentNode = (Integer) r.get("CONTROLLABLE__NODE");
                     updates.add(
-                            conn.update(DSL.table("ALLOCATIONS"))
+                            conn.update(DSL.table("PENDING_ALLOCATIONS"))
                                     .set(DSL.field("CURRENT_NODE"), currentNode)
                                     .set(DSL.field("CONTROLLABLE__NODE"), currentNode)
                                     .set(DSL.field("STATUS"), "PLACED")
@@ -200,10 +199,10 @@ class Simulation
 
         // Check per-node capacity for cores
         var nodeWrapper = new Object(){ boolean nodesPerCoreCheck = true; };
-        Result<Record> freeCores = conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                "from allocations " +
+        Result<Record> freeCores = conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.cores");
         freeCores.forEach(spareCores -> {
                     final Integer spareCoresPerNode = (Integer) spareCores.get(0);
@@ -213,10 +212,10 @@ class Simulation
 
         // Check per-node capacity for memslices
         var memsliceWrapper = new Object(){ boolean memslicesPerCoreCheck = true; };
-        Result<Record> freeMemslices = conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                "from allocations " +
+        Result<Record> freeMemslices = conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.cores");
         freeMemslices.forEach(spareMemslices -> {
                     final Integer spareMemslicesPerNode = (Integer) spareMemslices.get(0);
@@ -228,7 +227,7 @@ class Simulation
     }
 
     private int usedCores() {
-        final String usedCores = "select sum(allocations.cores) as usedCores from allocations";
+        final String usedCores = "select sum(pending_allocations.cores) as usedCores from pending_allocations";
         return ((Long) this.conn.fetch(usedCores).get(0).getValue(0)).intValue();
     }
 
@@ -238,7 +237,7 @@ class Simulation
     }
 
     private int usedMemslices() {
-        final String usedMemslices = "select sum(allocations.memslices) as usedMemslices from allocations";
+        final String usedMemslices = "select sum(pending_allocations.memslices) as usedMemslices from pending_allocations";
         return ((Long) this.conn.fetch(usedMemslices).get(0).getValue(0)).intValue();
     }
 
@@ -248,7 +247,7 @@ class Simulation
     }
 
     private int getNextAllocationId() {
-        final String highestAllocationId = "select max(allocations.id) from allocations";
+        final String highestAllocationId = "select max(pending_allocations.id) from pending_allocations";
         return (int) this.conn.fetch(highestAllocationId).get(0).getValue(0) + 1;
     }
 
@@ -314,7 +313,7 @@ public class SimulationRunner {
         // Randomly add core requests for 70% capacity of cluster
         int coreRequests = numNodes * coresPerNode;
         coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
-        final Allocations allocTable = Allocations.ALLOCATIONS;
+        final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
         int node = 0;
         int nodeCapacity = 0;
         int nodesUsed = 1;
@@ -322,7 +321,7 @@ public class SimulationRunner {
             while (nodeCapacity <= nodesUsed ) {
                 node = rand.nextInt(numNodes) + 1;
                 nodeCapacity = (int) conn.fetch(String.format("select cores from nodes where id = %d", node)).getValues(0).get(0);
-                nodesUsed = conn.fetch(String.format("select * from allocations where cores >= 1 and current_node = %d", node)).size();
+                nodesUsed = conn.fetch(String.format("select * from pending_allocations where cores >= 1 and current_node = %d", node)).size();
                 //System.out.println(String.format("Capacity for node %d is %d, used cores is %d", node, nodeCapacity, nodesUsed));
             }
             conn.insertInto(allocTable)
@@ -348,7 +347,7 @@ public class SimulationRunner {
             while (memCapacity <= memUsed ) {
                 node = rand.nextInt(numNodes) + 1;
                 memCapacity = (int) conn.fetch(String.format("select memslices from nodes where id = %d", node)).getValues(0).get(0);
-                memUsed = conn.fetch(String.format("select * from allocations where memslices >= 1 and current_node = %d", node)).size();
+                memUsed = conn.fetch(String.format("select * from pending_allocations where memslices >= 1 and current_node = %d", node)).size();
                 //System.out.println(String.format("Capacity for node %d is %d, used memslices is %d", node, memCapacity, memUsed));
             }
             conn.insertInto(allocTable)
@@ -369,14 +368,14 @@ public class SimulationRunner {
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
         final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from allocations where status = 'PLACED' check current_node = controllable__node";
+                " select * from pending_allocations where status = 'PLACED' check current_node = controllable__node";
 
         // Capacity core view
         final String capacity_core_view = "create constraint spare_cores as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as cores_spare " +
-                "from allocations " +
+                "select nodes.id, nodes.cores - sum(pending_allocations.cores) as cores_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.cores";
 
         // Capacity core constraint (e.g., can only use what is available on each node)
@@ -385,10 +384,10 @@ public class SimulationRunner {
 
         // Capacity memslice view
         final String capacity_memslice_view = "create constraint spare_memslices as " +
-                "select nodes.id, nodes.memslices - sum(allocations.memslices) as memslices_spare " +
-                "from allocations " +
+                "select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as memslices_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.memslices";
 
         // Capacity memslice constraint (e.g., can only use what is available on each node)
@@ -405,10 +404,10 @@ public class SimulationRunner {
 
         // Minimize number of nodes per application (e.g., maximize locality)
         final String application_num_nodes_view = "create constraint application_num_nodes as " +
-                "select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
-                "from allocations " +
+                "select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
+                "from pending_allocations " +
                 "join applications " +
-                "  on applications.id = allocations.application " +
+                "  on applications.id = pending_allocations.application " +
                 "group by applications.id";
         final String application_locality_constraint = "create constraint application_locality_constraint as " +
                 "select * from application_num_nodes " +
@@ -430,22 +429,22 @@ public class SimulationRunner {
 
     private static void printStats(final DSLContext conn) {
         System.out.print("Free cores per node:");
-        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(allocations.cores) as core_spare " +
-                "from allocations " +
+        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.cores"));
         System.out.print("Free memslices per node:");
-        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(allocations.memslices) as mem_spare " +
-                "from allocations " +
+        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as mem_spare " +
+                "from pending_allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
+                "  on nodes.id = pending_allocations.controllable__node " +
                 "group by nodes.id, nodes.memslices"));
         System.out.print("Nodes per application:");
-        System.out.println(conn.fetch("select applications.id, count(distinct allocations.controllable__node) as num_nodes " +
-                "from allocations " +
+        System.out.println(conn.fetch("select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
+                "from pending_allocations " +
                 "join applications " +
-                "  on applications.id = allocations.application " +
+                "  on applications.id = pending_allocations.application " +
                 "group by applications.id"));
     }
 
