@@ -54,13 +54,15 @@ class Simulation
         // TODO: add application creation/removal to turnover
 
         final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
+        final AllocationState allocStateTable = AllocationState.ALLOCATION_STATE;
 
+        int allocationId = 0;
         int totalCores = this.totalCores();
         int coreTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
         int coreAllocationsToMake = (int) Math.ceil((((double) coreTurnover) / 100) * totalCores);
         int maxCoreAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalCores);
         int minCoreAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalCores);
-        System.out.printf("Core Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d%n",
+        System.out.printf("Core Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d\n",
                 coreTurnover, coreAllocationsToMake, maxCoreAllocations, minCoreAllocations);
 
         int turnoverCounter = 0;
@@ -68,18 +70,21 @@ class Simulation
             int usedCores = this.usedCores();
             if (usedCores > minCoreAllocations) {
                 if (usedCores >= maxCoreAllocations || rand.nextBoolean()) {
-                    // delete core allocation
-                    final String allocations = "select * from pending_allocations where pending_allocations.cores > 0";
-                    Result<Record> results = this.conn.fetch(allocations);
-                    int rowToDelete = rand.nextInt(results.size());
-                    rowToDelete = (int) results.get(rowToDelete).getValue(0);
-                    conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
+                    // delete core allocation, do not count as turnover
+                    Result<Record> results = conn.select().from(allocStateTable).where(allocStateTable.CORES.greaterThan(0)).fetch();
+                    Record rowToDelete = results.get(rand.nextInt(results.size()));
+                    conn.update(allocStateTable)
+                            .set(allocStateTable.CORES, allocStateTable.CORES.minus(1))
+                            .where(and(
+                                    allocStateTable.NODE.eq(rowToDelete.getValue(allocStateTable.NODE)),
+                                    allocStateTable.APPLICATION.eq(rowToDelete.get(allocStateTable.APPLICATION))))
+                            .execute();
                 }
             }
-            // Add an allocation, count as turnover
+            // Add a pending allocation, count as turnover
             if (usedCores < maxCoreAllocations) {
                 conn.insertInto(allocTable)
-                        .set(allocTable.ID, this.getNextAllocationId())
+                        .set(allocTable.ID, allocationId)
                         .set(allocTable.APPLICATION, this.chooseRandomApplication())
                         .set(allocTable.CORES, 1)
                         .set(allocTable.MEMSLICES, 0)
@@ -88,6 +93,7 @@ class Simulation
                         .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
+                allocationId++;
             }
         }
 
@@ -96,7 +102,7 @@ class Simulation
         int memsliceAllocationsToMake = (int) Math.ceil((((double) memsliceTurnover) / 100) * totalMemslices);
         int maxMemsliceAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalMemslices);
         int minMemsliceAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalMemslices);
-        System.out.printf("Memslice Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d%n",
+        System.out.printf("Memslice Turnover: %d, allocationsToMake: %d, maxAllocations: %d, minAllocation: %d\n",
                 memsliceTurnover, memsliceAllocationsToMake, maxMemsliceAllocations, minMemsliceAllocations);
 
         turnoverCounter = 0;
@@ -104,18 +110,21 @@ class Simulation
             int usedMemslices = this.usedMemslices();
             if (usedMemslices > minMemsliceAllocations) {
                 if (usedMemslices >= maxMemsliceAllocations || rand.nextBoolean()) {
-                    // delete memslice allocation
-                    final String allocations = "select * from pending_allocations where pending_allocations.memslices > 0";
-                    Result<Record> results = this.conn.fetch(allocations);
-                    int rowToDelete = rand.nextInt(results.size());
-                    rowToDelete = (int) results.get(rowToDelete).getValue(0);
-                    conn.delete(allocTable).where(allocTable.ID.eq(rowToDelete)).execute();
+                    // delete core allocation, do not count as turnover
+                    Result<Record> results = conn.select().from(allocStateTable).where(allocStateTable.MEMSLICES.greaterThan(0)).fetch();
+                    Record rowToDelete = results.get(rand.nextInt(results.size()));
+                    conn.update(allocStateTable)
+                            .set(allocStateTable.MEMSLICES, allocStateTable.MEMSLICES.minus(1))
+                            .where(and(
+                                    allocStateTable.NODE.eq(rowToDelete.getValue(allocStateTable.NODE)),
+                                    allocStateTable.APPLICATION.eq(rowToDelete.get(allocStateTable.APPLICATION))))
+                            .execute();
                 }
             }
             // Add an allocation, count as turnover
             if (usedMemslices < maxMemsliceAllocations) {
                 conn.insertInto(allocTable)
-                        .set(allocTable.ID, this.getNextAllocationId())
+                        .set(allocTable.ID, allocationId)
                         .set(allocTable.APPLICATION, this.chooseRandomApplication())
                         .set(allocTable.CORES, 0)
                         .set(allocTable.MEMSLICES, 1)
@@ -124,6 +133,7 @@ class Simulation
                         .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
+                allocationId++;
             }
         }
 
@@ -136,64 +146,43 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results;
         try {
-            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
-                    "from pending_allocations " +
-                    "join nodes " +
-                    "  on nodes.id = pending_allocations.controllable__node " +
-                    "group by nodes.id, nodes.cores"));
-            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as mem_spare " +
-                    "from pending_allocations " +
-                    "join nodes " +
-                    "  on nodes.id = pending_allocations.controllable__node " +
-                    "group by nodes.id, nodes.memslices"));
-            System.out.println(conn.fetch("select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
-                    "from pending_allocations " +
-                    "join applications " +
-                    "  on applications.id = pending_allocations.application " +
-                    "group by applications.id"));
             results = model.solve("PENDING_ALLOCATIONS");
         } catch (ModelException e) {
-            System.out.println(String.format("Got a model exception when solving: %s", e.toString()));
-            return false;
+            throw e;
+            //return false;
         } catch (SolverException e) {
-            System.out.println(String.format("Got a model exception when solving: {}", e.toString()));
-            System.out.println(this.checkForCapacityViolation());
-            System.out.print("Free cores per node:");
-            System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
-                    "from pending_allocations " +
-                    "join nodes " +
-                    "  on nodes.id = pending_allocations.controllable__node " +
-                    "group by nodes.id, nodes.cores"));
-            System.out.print("Free memslices per node:");
-            System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as mem_spare " +
-                    "from pending_allocations " +
-                    "join nodes " +
-                    "  on nodes.id = pending_allocations.controllable__node " +
-                    "group by nodes.id, nodes.memslices"));
-            System.out.print("Nodes per application:");
-            System.out.println(conn.fetch("select applications.id, count(distinct pending_allocations.controllable__node) as num_nodes " +
-                    "from pending_allocations " +
-                    "join applications " +
-                    "  on applications.id = pending_allocations.application " +
-                    "group by applications.id"));
-            return false;
+            throw e;
+            //return false;
         }
 
-        final List<Update<?>> updates = new ArrayList<>();
+        final PendingAllocations allocTable = PendingAllocations.PENDING_ALLOCATIONS;
+        final AllocationState allocStateTable = AllocationState.ALLOCATION_STATE;
         results.forEach(r -> {
-                    final Integer coreId = (Integer) r.get("ID");
-                    final Integer currentNode = (Integer) r.get("CONTROLLABLE__NODE");
-                    updates.add(
-                            conn.update(DSL.table("PENDING_ALLOCATIONS"))
-                                    .set(DSL.field("CURRENT_NODE"), currentNode)
-                                    .set(DSL.field("CONTROLLABLE__NODE"), currentNode)
-                                    .set(DSL.field("STATUS"), "PLACED")
-                                    .where(DSL.field("ID").eq(coreId)
-                                            .and(DSL.field("STATUS").eq("PENDING")))
-            );
+                    final Integer allocId = (Integer) r.get("ID");
+                    final Integer node = (Integer) r.get("CONTROLLABLE__NODE");
+                    final Integer application = (Integer) r.get("APPLICATION");
+
+                    // Check if row in allocation_state table. If not, create. If so, update.
+                    if (!conn.fetchExists(conn.selectFrom(allocStateTable).
+                            where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application))))) {
+                        conn.insertInto(allocStateTable)
+                                .set(allocStateTable.APPLICATION, application)
+                                .set(allocStateTable.NODE, node)
+                                .set(allocStateTable.MEMSLICES, (Integer) r.get("MEMSLICES"))
+                                .set(allocStateTable.CORES, (Integer) r.get("CORES"))
+                                .execute();
+                    } else {
+                        conn.update(allocStateTable)
+                                .set(allocStateTable.CORES, allocStateTable.CORES.plus((Integer) r.get("CORES")))
+                                .set(allocStateTable.MEMSLICES, allocStateTable.MEMSLICES.plus((Integer) r.get("MEMSLICES")))
+                                .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
+                                .execute();
+                    }
+
+                    // Delete row from pending_allocation table now that it's been assigned
+                    conn.delete(allocTable).where(allocTable.ID.eq(allocId)).execute();
                 }
         );
-        conn.batch(updates).execute();
         return true;
     }
 
@@ -232,8 +221,16 @@ class Simulation
     }
 
     private int usedCores() {
-        final String usedCores = "select sum(pending_allocations.cores) as usedCores from pending_allocations";
-        return ((Long) this.conn.fetch(usedCores).get(0).getValue(0)).intValue();
+        final String allocatedCoresSQL = "select sum(allocation_state.cores) from allocation_state";
+        final String pendingCoresSQL = "select sum(pending_allocations.cores) from pending_allocations";
+        Long usedCores = 0L;
+        try {
+            usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
+        } catch (NullPointerException e) {}
+        try {
+            usedCores += (Long) this.conn.fetch(pendingCoresSQL).get(0).getValue(0);
+        } catch (NullPointerException e) {}
+        return usedCores.intValue();
     }
 
     private int totalCores() {
@@ -242,18 +239,21 @@ class Simulation
     }
 
     private int usedMemslices() {
-        final String usedMemslices = "select sum(pending_allocations.memslices) as usedMemslices from pending_allocations";
-        return ((Long) this.conn.fetch(usedMemslices).get(0).getValue(0)).intValue();
+        final String allocatedMemslicesSQL = "select sum(allocation_state.memslices) from allocation_state";
+        final String pendingMemslicesSQL = "select sum(pending_allocations.memslices) from pending_allocations";
+        Long usedMemslices = 0L;
+        try {
+            usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
+        } catch (NullPointerException e) {}
+        try {
+            usedMemslices += (Long) this.conn.fetch(pendingMemslicesSQL).get(0).getValue(0);
+        } catch (NullPointerException e) {}
+        return usedMemslices.intValue();
     }
 
     private int totalMemslices() {
         final String totalMemslices = "select sum(nodes.memslices) from nodes";
         return ((Long) this.conn.fetch(totalMemslices).get(0).getValue(0)).intValue();
-    }
-
-    private int getNextAllocationId() {
-        final String highestAllocationId = "select max(pending_allocations.id) from pending_allocations";
-        return (int) this.conn.fetch(highestAllocationId).get(0).getValue(0) + 1;
     }
 
     private int chooseRandomApplication() {
@@ -408,9 +408,6 @@ public class SimulationRunner {
                 index = (index + 1) % nodeOptions.size();
             }
         }
-
-        System.out.println(conn.fetch("select * from allocation_state"));
-        System.exit(1);
     }
 
     private static Model createModel(final DSLContext conn) {
