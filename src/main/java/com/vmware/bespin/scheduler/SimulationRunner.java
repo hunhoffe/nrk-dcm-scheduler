@@ -22,11 +22,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Collectors;
 
 class Simulation
@@ -136,11 +133,6 @@ class Simulation
                 allocationId++;
             }
         }
-
-        if (this.checkForCapacityViolation()) {
-            System.out.print("CAPACITY GENERATION ERROR AFTER POPULATING");
-            System.exit(-1);
-        }
     }
 
     public boolean runModelAndUpdateDB() {
@@ -193,10 +185,10 @@ class Simulation
 
         // Check per-node capacity for cores
         var nodeWrapper = new Object(){ boolean nodesPerCoreCheck = true; };
-        Result<Record> freeCores = conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
-                "from pending_allocations " +
+        Result<Record> freeCores = conn.fetch("select nodes.id, nodes.cores - sum(allocation_state.cores) as core_spare " +
+                "from allocation_state " +
                 "join nodes " +
-                "  on nodes.id = pending_allocations.controllable__node " +
+                "  on nodes.id = allocation_state.node " +
                 "group by nodes.id, nodes.cores");
         freeCores.forEach(spareCores -> {
                     final Integer spareCoresPerNode = (Integer) spareCores.get(0);
@@ -206,10 +198,10 @@ class Simulation
 
         // Check per-node capacity for memslices
         var memsliceWrapper = new Object(){ boolean memslicesPerCoreCheck = true; };
-        Result<Record> freeMemslices = conn.fetch("select nodes.id, nodes.cores - sum(pending_allocations.cores) as core_spare " +
-                "from pending_allocations " +
+        Result<Record> freeMemslices = conn.fetch("select nodes.id, nodes.cores - sum(allocation_state.cores) as core_spare " +
+                "from allocation_state " +
                 "join nodes " +
-                "  on nodes.id = pending_allocations.controllable__node " +
+                "  on nodes.id = allocation_state.node " +
                 "group by nodes.id, nodes.cores");
         freeMemslices.forEach(spareMemslices -> {
                     final Integer spareMemslicesPerNode = (Integer) spareMemslices.get(0);
@@ -292,11 +284,14 @@ public class SimulationRunner {
     }
 
     private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
+        final Nodes nodeTable = Nodes.NODES;
+        final Applications appTable = Applications.APPLICATIONS;
+        final AllocationState allocStateTable = AllocationState.ALLOCATION_STATE;
+
         Random rand = new Random();
         setupDb(conn);
 
         // Add nodes with specified cores
-        final Nodes nodeTable = Nodes.NODES;
         for (int i = 1; i <= numNodes; i++) {
             conn.insertInto(nodeTable)
                     .set(nodeTable.ID, i)
@@ -307,7 +302,6 @@ public class SimulationRunner {
 
         // Randomly generate applications between 10 and 25
         int numApplications = 10 + rand.nextInt(15);
-        final Applications appTable = Applications.APPLICATIONS;
         for (int i = 1; i <= numApplications; i++) {
             // Add initial applications
             conn.insertInto(appTable)
@@ -315,130 +309,134 @@ public class SimulationRunner {
                     .execute();
         }
 
-        // Randomly add core requests for 70% capacity of cluster cores
-        int coreRequests = numNodes * coresPerNode;
-        coreRequests = (int) Math.ceil((float) coreRequests * 0.70);
-        final AllocationState allocStateTable = AllocationState.ALLOCATION_STATE;
-        int node = 0;
-        int nodesUsed = coresPerNode;
-        for (int i = 1; i <= coreRequests; i++) {
-            int application = rand.nextInt(numApplications) + 1;
-            while (coresPerNode <= nodesUsed ) {
-                node = rand.nextInt(numNodes) + 1;
-                Record1<BigDecimal> record = conn
-                        .select(sum(allocStateTable.CORES))
-                        .from(allocStateTable)
-                        .where(allocStateTable.NODE.eq(node))
-                        .fetchOne();
-                try {
-                    nodesUsed = Integer.getInteger(record.getValue(record.field1()).toString());
-                } catch (NullPointerException e) {
-                    nodesUsed = 0;
-                }
-            }
 
-            if (!conn.fetchExists(conn.selectFrom(allocStateTable).
-                    where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application))))) {
-                conn.insertInto(allocStateTable)
-                        .set(allocStateTable.APPLICATION, application)
-                        .set(allocStateTable.NODE, node)
-                        .set(allocStateTable.MEMSLICES, 0)
-                        .set(allocStateTable.CORES, 1)
-                        .execute();
-            } else {
-                conn.update(allocStateTable)
-                        .set(allocStateTable.CORES, allocStateTable.CORES.plus(1))
-                        .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
-                        .execute();
-            }
-            nodesUsed = coresPerNode;
+        // allocations for 70% capacity of cluster cores and cluster memslices
+        int coreAllocs = numNodes * coresPerNode;
+        coreAllocs = (int) Math.ceil((float) coreAllocs * 0.70);
+        int memsliceAllocs = numNodes * memslicesPerNode;
+        memsliceAllocs = (int) Math.ceil((float) memsliceAllocs * 0.70);
+
+        HashMap<Integer, List<Integer>> appAllocMap = new HashMap();
+
+        // Assign cores the applications
+        for (int i = 0; i < coreAllocs; i++) {
+            int application = rand.nextInt(numApplications) + 1;
+            List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+            appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
         }
 
-        // Randomly add memory requests for 70% capacity of cluster memory
-        // Only add memslices to nodes that are already running cores for the application
-        int memRequests = numNodes * memslicesPerNode;
-        memRequests = (int) Math.ceil((float) memRequests * 0.70);
-        int i = 1;
-        while (i <= memRequests) {
+        // Assign memslices to applications
+        for (int i = 0; i < memsliceAllocs; i++) {
             int application = rand.nextInt(numApplications) + 1;
+            List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+            appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
+        }
 
-            // Randomly choose a node already allocated cores for this application to add memory to
-            List<?> nodeOptions = conn.select(allocStateTable.NODE)
-                    .from(allocStateTable)
-                    .where(allocStateTable.APPLICATION.eq(application))
-                    .fetch()
-                    .getValues(0);
+        // Assign application allocs to nodes
+        for (Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
+            int application = entry.getKey();
+            int cores = entry.getValue().get(0);
+            int memslices = entry.getValue().get(1);
 
-            // Iterate over options starting with random index
-            if (nodeOptions.size() == 0) {
-                break;
-            }
-            int indexStart = rand.nextInt(nodeOptions.size());
-            int index = -1;
-            boolean done = false;
-            int memslicesUsed = 0;
-            while (!done && index != indexStart ) {
-                if (index == -1) {
-                    index = indexStart;
-                }
+            // Only have to do something if application was assigned a resource
+            while (cores > 0 || memslices > 0) {
 
-                // Calculate available memory at that node
-                node = (int) nodeOptions.get(index);
-                Record1<BigDecimal> record = conn
-                        .select(sum(allocStateTable.MEMSLICES))
-                        .from(allocStateTable)
-                        .where(allocStateTable.NODE.eq(node))
-                        .fetchOne();
+                // Choose a random node
+                int node = rand.nextInt(numNodes) + 1;
+
+                // figure out how many cores/memslices we can alloc on that node
+                String sql = String.format("select sum(allocation_state.cores) from allocation_state where node = %d", node);
+                int coresUsed = 0;
                 try {
-                    memslicesUsed = Integer.getInteger(record.getValue(record.field1()).toString());
-                } catch (NullPointerException e) {
-                    memslicesUsed = 0;
-                }
+                    coresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+                } catch (NullPointerException e) {}
+                int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
-                // If there is available
-                if (memslicesUsed < memslicesPerNode) {
-                    conn.update(allocStateTable)
-                            .set(allocStateTable.MEMSLICES, allocStateTable.MEMSLICES.plus(1))
-                            .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
-                            .execute();
-                    done = true;
-                    i++;
-                }
+                sql = String.format("select sum(allocation_state.memslices) from allocation_state where node = %d", node);
+                int memslicesUsed = 0;
+                try {
+                    memslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+                } catch (NullPointerException e) {}
+                int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
-                index = (index + 1) % nodeOptions.size();
+                // If we can alloc anything, do so
+                if (coresToAlloc > 0 || memslicesToAlloc > 0) {
+                    // If row for (node, application) doesn't exist in allocState table, create it. Otherwise, update it.
+                    if (!conn.fetchExists(conn.selectFrom(allocStateTable).
+                            where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application))))) {
+                        conn.insertInto(allocStateTable)
+                                .set(allocStateTable.APPLICATION, application)
+                                .set(allocStateTable.NODE, node)
+                                .set(allocStateTable.MEMSLICES, memslicesToAlloc)
+                                .set(allocStateTable.CORES, coresToAlloc)
+                                .execute();
+                    } else {
+                        conn.update(allocStateTable)
+                                .set(allocStateTable.CORES, allocStateTable.CORES.plus(coresToAlloc))
+                                .set(allocStateTable.MEMSLICES, allocStateTable.MEMSLICES.plus(memslicesToAlloc))
+                                .where(and(allocStateTable.NODE.eq(node), allocStateTable.APPLICATION.eq(application)))
+                                .execute();
+                    }
+
+                    // Mark resources as allocated
+                    cores -= coresToAlloc;
+                    memslices -= memslicesToAlloc;
+                }
             }
         }
+
+        // Double check correctness
+        String sql = "select sum(allocation_state.cores) from allocation_state";
+        int totalCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        sql = "select sum(allocation_state.memslices) from allocation_state";
+        int totalMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        sql = "create view nodeSums as select nodes.id, sum(allocation_state.cores) as cores, sum(allocation_state.memslices) as memslices " +
+                "from allocation_state " +
+                "join nodes " +
+                "  on nodes.id = allocation_state.node " +
+                "group by nodes.id, nodes.cores, nodes.memslices";
+        conn.execute(sql);
+        sql = "select max(nodeSums.cores) from nodeSums";
+        int maxCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        sql = "select max(nodeSums.memslices) from nodeSums";
+        int maxMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        assert(totalCoresUsed == coreAllocs);
+        assert(maxCoresUsed <= coresPerNode);
+        assert(totalMemslicesUsed == memsliceAllocs);
+        assert(maxMemslicesUsed <= memslicesPerNode);
+
+        LOG.info(String.format("Total cores used: %d/%d, Max cores per node: %d/%d",
+                totalCoresUsed, coreAllocs, maxCoresUsed, coresPerNode));
+        LOG.info(String.format("Total memslices used: %d/%d, Max memslices per node: %d/%d",
+                totalMemslicesUsed, memsliceAllocs, maxMemslicesUsed, memslicesPerNode));
     }
 
     private static Model createModel(final DSLContext conn) {
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
+        // TODO: do I actually need that constraint now?? current_node??
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from pending_allocations where status = 'PLACED' check current_node = controllable__node";
 
-        // Capacity core view
-        final String capacity_core_view = "create constraint spare_cores as " +
-                "select nodes.id, nodes.cores - sum(pending_allocations.cores) as cores_spare " +
+        // View of pending resources on nodes for both memslices and cores
+        final String pending_view = "create constraint pending_view as " +
+                "select nodes.id, sum(pending_allocations.cores) as cores, sum(pending_allocations.memslices) as memslices " +
                 "from pending_allocations " +
                 "join nodes " +
                 "  on nodes.id = pending_allocations.controllable__node " +
-                "group by nodes.id, nodes.cores";
+                "group by nodes.id, nodes.cores, nodes.memslices";
+
+        // View of placed resources on nodes for both memslices and cores
+        final String placed_view = "create constraint placed_view as " +
+                "select nodes.id, sum(allocation_state.cores) as cores, sum(allocation_state.memslices) as memslices " +
+                "from allocation_state " +
+                "join nodes " +
+                "  on nodes.id = allocation_state.node " +
+                "group by nodes.id, nodes.cores, nodes.memslices";
 
         // Capacity core constraint (e.g., can only use what is available on each node)
         final String capacity_core_constraint = "create constraint capacity_core_constraint as " +
                 " select * from spare_cores check cores_spare >= 0";
-
-        // Capacity memslice view
-        final String capacity_memslice_view = "create constraint spare_memslices as " +
-                "select nodes.id, nodes.memslices - sum(pending_allocations.memslices) as memslices_spare " +
-                "from pending_allocations " +
-                "join nodes " +
-                "  on nodes.id = pending_allocations.controllable__node " +
-                "group by nodes.id, nodes.memslices";
-
-        // Capacity memslice constraint (e.g., can only use what is available on each node)
-        final String capacity_memslice_constraint = "create constraint capacity_memslice_constraint as " +
-                " select * from spare_memslices check memslices_spare >= 0";
 
         // Create load balancing constraint across nodes for cores and memslices
         final String node_load_cores = "create constraint node_load_cores as " +
@@ -462,10 +460,9 @@ public class SimulationRunner {
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
-                capacity_core_view,
-                capacity_core_constraint,
-                capacity_memslice_view,
-                capacity_memslice_constraint,
+                pending_view,
+                placed_view,
+                // TODO: need to add capacity constraints
                 node_load_cores,
                 node_load_memslices,
                 application_num_nodes_view,
