@@ -8,7 +8,7 @@ create table applications(
     id integer,
     primary key (id));
 
-create table allocation_state(
+create table allocations(
     application integer,
     node integer,
     cores integer,
@@ -17,7 +17,7 @@ create table allocation_state(
 	foreign key (application) references applications(id),
 	primary key (application, node));
 
-create table pending_allocations(
+create table pending(
     id integer,
     application integer,
     cores integer,
