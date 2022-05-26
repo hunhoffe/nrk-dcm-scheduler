@@ -351,37 +351,14 @@ public class SimulationRunner {
             throw new RuntimeException(e);
         }
 
-        // View of pending resources on nodes for both memslices and cores
-        final String pending_view = "create view pending_view as " +
-                "select nodes.id, -sum(pending.cores) as cores, -sum(pending.memslices) as memslices " +
-                "from pending " +
-                "join nodes " +
-                "  on nodes.id = pending.controllable__node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(pending_view);
-
         // View of placed resources on nodes for both memslices and cores
         final String spare_placed_view = "create view spare_placed_view as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
+                "select nodes.id, cast(nodes.cores - sum(allocations.cores) as int) as cores, cast(nodes.memslices - sum(allocations.memslices) as int) as memslices " +
                 "from allocations " +
                 "join nodes " +
                 "  on nodes.id = allocations.node " +
                 "group by nodes.id, nodes.cores, nodes.memslices";
         conn.execute(spare_placed_view);
-
-        // Join places and pending views
-        final String spare_view = "create view spare_view as " +
-                "select id, cast(sum(cores) as int) as spare_cores, cast(sum(memslices) as int) as  spare_memslices " +
-                "from " +
-                "( " +
-                " select id, cores, memslices " +
-                " from pending_view" +
-                " union all " +
-                " select id, cores, memslices " +
-                " from spare_placed_view " +
-                ") t " +
-                "group by id";
-        conn.execute(spare_view);
     }
 
     private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
@@ -510,8 +487,6 @@ public class SimulationRunner {
                 totalCoresUsed, coreAllocs, maxCoresUsed, coresPerNode));
         LOG.info(String.format("Total memslices used: %d/%d, Max memslices per node: %d/%d",
                 totalMemslicesUsed, memsliceAllocs, maxMemslicesUsed, memslicesPerNode));
-        LOG.info("Spare resources per node:");
-        LOG.info(conn.fetch("select * from spare_view"));
     }
 
     private static Model createModel(final DSLContext conn) {
@@ -521,17 +496,22 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from pending where status = 'PLACED' check current_node = controllable__node";
 
+        // View of pending resources on nodes for both memslices and cores
+        final String spare_view = "create constraint spare_view as " +
+                "select spare_placed_view.id, spare_placed_view.cores - sum(pending.cores) as cores, spare_placed_view.memslices - sum(pending.memslices) as memslices " +
+                "from pending " +
+                "join spare_placed_view " +
+                "  on spare_placed_view.id = pending.controllable__node " +
+                "group by spare_placed_view.id, spare_placed_view.cores, spare_placed_view.memslices";
+
         // Capacity core constraint (e.g., can only use what is available on each node)
-        final String capacity_constraint = "create constraint capacity_core_constraint as " +
-                " select * from spare_view check spare_cores >= 0 and spare_memslices >= 0";
+        final String capacity_constraint = "create constraint capacity_constraint as " +
+                " select * from spare_view check cores >= 0 and memslices >= 0";
 
         // Create load balancing constraint across nodes for cores and memslices
-        final String node_load_cores = "create constraint node_load_cores as " +
-                "select * from spare_cores " +
-                "maximize min(cores_spare)";
-        final String node_load_memslices = "create constraint node_load_memslices as " +
-                "select * from spare_memslices " +
-                "maximize min(memslices_spare)";
+        final String node_loadbalance_constraint = "create constraint node_loadbalance_constraint as " +
+                "select * from spare_view " +
+                "maximize min(cores + memslices)";
 
         // Minimize number of nodes per application (e.g., maximize locality)
         final String application_num_nodes_view = "create constraint application_num_nodes as " +
@@ -548,9 +528,9 @@ public class SimulationRunner {
         b.setPrintDiagnostics(true);
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
-                capacity_constraint
-                // TODO: need to add capacity constraints
-                //node_load_cores,
+                spare_view,
+                capacity_constraint,
+                node_loadbalance_constraint
                 //node_load_memslices,
                 //application_num_nodes_view,
                 //application_locality_constraint
@@ -559,7 +539,7 @@ public class SimulationRunner {
 
     private static void printStats(final DSLContext conn) {
         System.out.print("Spare resources per node:");
-        System.out.println(conn.fetch("select * from spare_view"));
+        System.out.println(conn.fetch("select * from spare_placed_view"));
         // TODO: print application statistics
         // TODO: print statistics on cluster usage
     }
