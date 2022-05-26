@@ -188,9 +188,6 @@ class Simulation
         System.out.println("Capacity view:");
         System.out.println(conn.fetch("select * from capacity_view"));
         */
-
-        System.exit(-1);
-
     }
 
     public boolean runModelAndUpdateDB() {
@@ -250,7 +247,7 @@ class Simulation
             final String pendingCoresSQL = String.format("select sum(pending.cores) from pending", node);
             final String coresAvailableSQL = String.format("select cores from nodes where id = %d", node);
             Long usedCores = 0L;
-            Long coreCapacity = 0L;
+            int coreCapacity = 0;
             try {
                 usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
@@ -258,16 +255,16 @@ class Simulation
                 usedCores += (Long) this.conn.fetch(pendingCoresSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
             try {
-                coreCapacity = (Long) this.conn.fetch(coresAvailableSQL).get(0).getValue(0);
+                coreCapacity = (int) this.conn.fetch(coresAvailableSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
 
-            nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores);
+            nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores.intValue());
 
             final String allocatedMemslicesSQL = String.format("select sum(allocations.memslices) from allocations where node = %d", node);
             final String pendingMemslicesSQL = String.format("select sum(pending.memslices) from pending", node);
             final String memslicesAvailableSQL = String.format("select memslices from nodes where id = %d", node);
             Long usedMemslices = 0L;
-            Long memsliceCapacity = 0L;
+            int memsliceCapacity = 0;
             try {
                 usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
@@ -275,10 +272,10 @@ class Simulation
                 usedMemslices += (Long) this.conn.fetch(pendingMemslicesSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
             try {
-                memsliceCapacity = (Long) this.conn.fetch(memslicesAvailableSQL).get(0).getValue(0);
+                memsliceCapacity = (int) this.conn.fetch(memslicesAvailableSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
 
-            memslicesPerCoreCheck = memslicesPerCoreCheck && (memsliceCapacity >= usedMemslices);
+            memslicesPerCoreCheck = memslicesPerCoreCheck && (memsliceCapacity >= usedMemslices.intValue());
         }
 
         return !(totalCoreCheck && totalMemsliceCheck && nodesPerCoreCheck && memslicesPerCoreCheck);
@@ -353,6 +350,38 @@ public class SimulationRunner {
         } catch (final IOException e) {
             throw new RuntimeException(e);
         }
+
+        // View of pending resources on nodes for both memslices and cores
+        final String pending_view = "create view pending_view as " +
+                "select nodes.id, -sum(pending.cores) as cores, -sum(pending.memslices) as memslices " +
+                "from pending " +
+                "join nodes " +
+                "  on nodes.id = pending.controllable__node " +
+                "group by nodes.id, nodes.cores, nodes.memslices";
+        conn.execute(pending_view);
+
+        // View of placed resources on nodes for both memslices and cores
+        final String spare_placed_view = "create view spare_placed_view as " +
+                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.node " +
+                "group by nodes.id, nodes.cores, nodes.memslices";
+        conn.execute(spare_placed_view);
+
+        // Join places and pending views
+        final String spare_view = "create view spare_view as " +
+                "select id, cast(sum(cores) as int) as spare_cores, cast(sum(memslices) as int) as  spare_memslices " +
+                "from " +
+                "( " +
+                " select id, cores, memslices " +
+                " from pending_view" +
+                " union all " +
+                " select id, cores, memslices " +
+                " from spare_placed_view " +
+                ") t " +
+                "group by id";
+        conn.execute(spare_view);
     }
 
     private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
@@ -481,6 +510,8 @@ public class SimulationRunner {
                 totalCoresUsed, coreAllocs, maxCoresUsed, coresPerNode));
         LOG.info(String.format("Total memslices used: %d/%d, Max memslices per node: %d/%d",
                 totalMemslicesUsed, memsliceAllocs, maxMemslicesUsed, memslicesPerNode));
+        LOG.info("Spare resources per node:");
+        LOG.info(conn.fetch("select * from spare_view"));
     }
 
     private static Model createModel(final DSLContext conn) {
@@ -490,38 +521,9 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from pending where status = 'PLACED' check current_node = controllable__node";
 
-        // View of pending resources on nodes for both memslices and cores
-        final String pending_view = "create constraint pending_view as " +
-                "select nodes.id, -1*sum(pending.cores) as cores, -1*sum(pending.memslices) as memslices " +
-                "from pending " +
-                "join nodes " +
-                "  on nodes.id = pending.controllable__node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-
-        // View of placed resources on nodes for both memslices and cores
-        final String spare_placed_view = "create constraint spare_placed_view as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-
-        // Join places and pending views
-        final String spare_view = "create constraint spare_view as " +
-                "select id, sum(cores) as spare_cores, sum(memslices) as  spare_memslices " +
-                "from " +
-                "( " +
-                " select id, cores, memslices " +
-                " from pending_view" +
-                " union all " +
-                " select id, cores, memslices " +
-                " from spare_placed_view " +
-                ") t " +
-                "group by id";
-
         // Capacity core constraint (e.g., can only use what is available on each node)
         final String capacity_constraint = "create constraint capacity_core_constraint as " +
-                " select * from spare_view check spare_cores >= 0";
+                " select * from spare_view check spare_cores >= 0 and spare_memslices >= 0";
 
         // Create load balancing constraint across nodes for cores and memslices
         final String node_load_cores = "create constraint node_load_cores as " +
@@ -543,12 +545,10 @@ public class SimulationRunner {
                 "maximize -1*sum(num_nodes)";
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder();
+        b.setPrintDiagnostics(true);
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
-                pending_view,
-                spare_placed_view,
-                //spare_view,
-                //capacity_constraint
+                capacity_constraint
                 // TODO: need to add capacity constraints
                 //node_load_cores,
                 //node_load_memslices,
@@ -558,24 +558,10 @@ public class SimulationRunner {
     }
 
     private static void printStats(final DSLContext conn) {
-        System.out.print("Free cores per node:");
-        System.out.println(conn.fetch("select nodes.id, nodes.cores - sum(pending.cores) as core_spare " +
-                "from pending " +
-                "join nodes " +
-                "  on nodes.id = pending.controllable__node " +
-                "group by nodes.id, nodes.cores"));
-        System.out.print("Free memslices per node:");
-        System.out.println(conn.fetch("select nodes.id, nodes.memslices - sum(pending.memslices) as mem_spare " +
-                "from pending " +
-                "join nodes " +
-                "  on nodes.id = pending.controllable__node " +
-                "group by nodes.id, nodes.memslices"));
-        System.out.print("Nodes per application:");
-        System.out.println(conn.fetch("select applications.id, count(distinct pending.controllable__node) as num_nodes " +
-                "from pending " +
-                "join applications " +
-                "  on applications.id = pending.application " +
-                "group by applications.id"));
+        System.out.print("Spare resources per node:");
+        System.out.println(conn.fetch("select * from spare_view"));
+        // TODO: print application statistics
+        // TODO: print statistics on cluster usage
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
