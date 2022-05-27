@@ -8,7 +8,6 @@ import com.vmware.dcm.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Allocations;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
-import com.vmware.bespin.scheduler.generated.tables.Pending;
 
 import org.jooq.*;
 import org.jooq.Record;
@@ -22,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -39,7 +39,6 @@ class Simulation
     static final int MIN_TURNOVER = 1;
     static final int MAX_TURNOVER = 5;
 
-    static final Pending pendingTable = Pending.PENDING;
     static final Allocations allocTable = Allocations.ALLOCATIONS;
     static final Nodes nodeTable = Nodes.NODES;
 
@@ -54,7 +53,6 @@ class Simulation
 
         // TODO: add application creation/removal to turnover
 
-        int allocationId = 0;
         int totalCores = this.coreCapacity();
         int coreTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
         int coreAllocationsToMake = (int) Math.ceil((((double) coreTurnover) / 100) * totalCores);
@@ -74,24 +72,22 @@ class Simulation
                     conn.update(allocTable)
                             .set(allocTable.CORES, allocTable.CORES.minus(1))
                             .where(and(
-                                    allocTable.NODE.eq(rowToDelete.getValue(allocTable.NODE)),
+                                    allocTable.CURRENT_NODE.eq(rowToDelete.getValue(allocTable.CURRENT_NODE)),
                                     allocTable.APPLICATION.eq(rowToDelete.get(allocTable.APPLICATION))))
                             .execute();
                 }
             }
             // Add a pending allocation, count as turnover
             if (usedCores < maxCoreAllocations) {
-                conn.insertInto(pendingTable)
-                        .set(pendingTable.ID, allocationId)
-                        .set(pendingTable.APPLICATION, this.chooseRandomApplication())
-                        .set(pendingTable.CORES, 1)
-                        .set(pendingTable.MEMSLICES, 0)
-                        .set(pendingTable.STATUS, "PENDING")
-                        .set(pendingTable.CURRENT_NODE, -1)
-                        .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                conn.insertInto(allocTable)
+                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
+                        .set(allocTable.CORES, 1)
+                        .set(allocTable.MEMSLICES, 0)
+                        .set(allocTable.STATUS, "PENDING")
+                        .set(allocTable.CURRENT_NODE, -1)
+                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
-                allocationId++;
             }
         }
 
@@ -114,86 +110,30 @@ class Simulation
                     conn.update(allocTable)
                             .set(allocTable.MEMSLICES, allocTable.MEMSLICES.minus(1))
                             .where(and(
-                                    allocTable.NODE.eq(rowToDelete.getValue(allocTable.NODE)),
+                                    allocTable.CURRENT_NODE.eq(rowToDelete.getValue(allocTable.CURRENT_NODE)),
                                     allocTable.APPLICATION.eq(rowToDelete.get(allocTable.APPLICATION))))
                             .execute();
                 }
             }
             // Add an allocation, count as turnover
             if (usedMemslices < maxMemsliceAllocations) {
-                conn.insertInto(pendingTable)
-                        .set(pendingTable.ID, allocationId)
-                        .set(pendingTable.APPLICATION, this.chooseRandomApplication())
-                        .set(pendingTable.CORES, 0)
-                        .set(pendingTable.MEMSLICES, 1)
-                        .set(pendingTable.STATUS, "PENDING")
-                        .set(pendingTable.CURRENT_NODE, -1)
-                        .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                conn.insertInto(allocTable)
+                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
+                        .set(allocTable.CORES, 0)
+                        .set(allocTable.MEMSLICES, 1)
+                        .set(allocTable.STATUS, "PENDING")
+                        .set(allocTable.CURRENT_NODE, -1)
+                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
-                allocationId++;
             }
         }
-
-        /*
-        // View of pending resources on nodes for both memslices and cores
-        final String pending_view = "create view pending_view as " +
-                "select nodes.id, -1*sum(pending.cores) as cores, -1*sum(pending.memslices) as memslices " +
-                "from pending " +
-                "join nodes " +
-                "  on nodes.id = pending.controllable__node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(pending_view);
-
-        // View of placed resources on nodes for both memslices and cores
-        final String placed_view = "create view placed_view as " +
-                "select nodes.id, sum(allocations.cores) as cores, sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(placed_view);
-
-        // View of placed resources on nodes for both memslices and cores
-        final String spare_placed_view = "create view spare_placed_view as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(spare_placed_view);
-
-        System.out.println("Pending:");
-        System.out.println(conn.fetch("select * from pending_view"));
-        System.out.println("Placed:");
-        System.out.println(conn.fetch("select * from placed_view"));
-        System.out.println("Spare Placed:");
-        System.out.println(conn.fetch("select * from spare_placed_view"));
-
-
-        // Join places and pending views
-        final String capacity_view = "create view capacity_view as " +
-                "select id, sum(cores) as totalCores, sum(memslices) as  totalMemslices " +
-                "from " +
-                "( " +
-                " select id, cores, memslices " +
-                " from pending_view" +
-                " union all " +
-                " select id, cores, memslices " +
-                " from spare_placed_view " +
-                ") t " +
-                "group by id";
-        conn.execute(capacity_view);
-
-        System.out.println("Capacity view:");
-        System.out.println(conn.fetch("select * from capacity_view"));
-        */
     }
 
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results;
         try {
-            results = model.solve("PENDING");
+            results = model.solve("ALLOCATIONS");
         } catch (ModelException e) {
             throw e;
             //return false;
@@ -202,32 +142,35 @@ class Simulation
             //return false;
         }
 
+        // Update database to finalized assignment
+        final List<Update<?>> updates = new ArrayList<>();
         results.forEach(r -> {
-                    final Integer allocId = (Integer) r.get("ID");
-                    final Integer node = (Integer) r.get("CONTROLLABLE__NODE");
-                    final Integer application = (Integer) r.get("APPLICATION");
-
-                    // Check if row in allocations table. If not, create. If so, update.
-                    if (!conn.fetchExists(conn.selectFrom(allocTable).
-                            where(and(allocTable.NODE.eq(node), allocTable.APPLICATION.eq(application))))) {
-                        conn.insertInto(allocTable)
-                                .set(allocTable.APPLICATION, application)
-                                .set(allocTable.NODE, node)
-                                .set(allocTable.MEMSLICES, (Integer) r.get("MEMSLICES"))
-                                .set(allocTable.CORES, (Integer) r.get("CORES"))
-                                .execute();
-                    } else {
-                        conn.update(allocTable)
-                                .set(allocTable.CORES, allocTable.CORES.plus((Integer) r.get("CORES")))
-                                .set(allocTable.MEMSLICES, allocTable.MEMSLICES.plus((Integer) r.get("MEMSLICES")))
-                                .where(and(allocTable.NODE.eq(node), allocTable.APPLICATION.eq(application)))
-                                .execute();
-                    }
-
-                    // Delete row from pending_allocation table now that it's been assigned
-                    conn.delete(pendingTable).where(pendingTable.ID.eq(allocId)).execute();
-                }
+                    updates.add(conn.update(allocTable)
+                            .set(allocTable.CURRENT_NODE, (Integer) r.get("CONTROLLABLE__NODE"))
+                            .set(allocTable.STATUS, "PLACED")
+                            .where(and(allocTable.ID.eq((Integer) r.get("ID")), allocTable.STATUS.eq("PENDING")))
+                    );
+            }
         );
+        conn.batch(updates).execute();
+
+        // Merge rows when possible
+        System.out.println("Before Merge:");
+        System.out.println(conn.fetch("select * from allocations"));
+        // h2db disallows merge-match-delete commands, so do this in two commands :(
+        String updateMerged = "update allocations a, merged_resources m " +
+                "set a.cores = m.cores, a.memslices = m.memslices " +
+                "inner join merged_resources m " +
+                "on a.id = m.id";
+        conn.execute(updateMerged);
+        String deleteMerged = "delete from allocations " +
+                "where id not in (select m.id from merged_resources m)";
+        conn.execute(deleteMerged);
+
+        System.out.println("After Merge:");
+        System.out.println(conn.fetch("select * from allocations"));
+        System.exit(-1);
+
         return true;
     }
 
@@ -243,8 +186,7 @@ class Simulation
         Result<Record> results = conn.fetch("select id from nodes");
         for (Record r: results) {
             int node = r.getValue(nodeTable.ID);
-            final String allocatedCoresSQL = String.format("select sum(allocations.cores) from allocations where node = %d", node);
-            final String pendingCoresSQL = String.format("select sum(pending.cores) from pending", node);
+            final String allocatedCoresSQL = String.format("select sum(allocations.cores) from allocations where current_node = %d", node);
             final String coresAvailableSQL = String.format("select cores from nodes where id = %d", node);
             Long usedCores = 0L;
             int coreCapacity = 0;
@@ -252,24 +194,17 @@ class Simulation
                 usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
             try {
-                usedCores += (Long) this.conn.fetch(pendingCoresSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
-            try {
                 coreCapacity = (int) this.conn.fetch(coresAvailableSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
 
             nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores.intValue());
 
-            final String allocatedMemslicesSQL = String.format("select sum(allocations.memslices) from allocations where node = %d", node);
-            final String pendingMemslicesSQL = String.format("select sum(pending.memslices) from pending", node);
+            final String allocatedMemslicesSQL = String.format("select sum(allocations.memslices) from allocations where current_node = %d", node);
             final String memslicesAvailableSQL = String.format("select memslices from nodes where id = %d", node);
             Long usedMemslices = 0L;
             int memsliceCapacity = 0;
             try {
                 usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
-            try {
-                usedMemslices += (Long) this.conn.fetch(pendingMemslicesSQL).get(0).getValue(0);
             } catch (NullPointerException e) {}
             try {
                 memsliceCapacity = (int) this.conn.fetch(memslicesAvailableSQL).get(0).getValue(0);
@@ -283,13 +218,9 @@ class Simulation
 
     private int usedCores() {
         final String allocatedCoresSQL = "select sum(allocations.cores) from allocations";
-        final String pendingCoresSQL = "select sum(pending.cores) from pending";
         Long usedCores = 0L;
         try {
             usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
-        } catch (NullPointerException e) {}
-        try {
-            usedCores += (Long) this.conn.fetch(pendingCoresSQL).get(0).getValue(0);
         } catch (NullPointerException e) {}
         return usedCores.intValue();
     }
@@ -301,13 +232,9 @@ class Simulation
 
     private int usedMemslices() {
         final String allocatedMemslicesSQL = "select sum(allocations.memslices) from allocations";
-        final String pendingMemslicesSQL = "select sum(pending.memslices) from pending";
         Long usedMemslices = 0L;
         try {
             usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-        } catch (NullPointerException e) {}
-        try {
-            usedMemslices += (Long) this.conn.fetch(pendingMemslicesSQL).get(0).getValue(0);
         } catch (NullPointerException e) {}
         return usedMemslices.intValue();
     }
@@ -351,14 +278,11 @@ public class SimulationRunner {
             throw new RuntimeException(e);
         }
 
-        // View of placed resources on nodes for both memslices and cores
-        final String spare_placed_view = "create view spare_placed_view as " +
-                "select nodes.id, cast(nodes.cores - sum(allocations.cores) as int) as cores, cast(nodes.memslices - sum(allocations.memslices) as int) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(spare_placed_view);
+        conn.execute("create view merged_resources as " +
+                "select max(id) as id, sum(cores) as cores, sum(memslices) as memslices, application, " +
+                "    status, current_node from allocations " +
+                "where status = 'PLACED' " +
+                "group by application, current_node");
     }
 
     private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
@@ -396,6 +320,51 @@ public class SimulationRunner {
 
         HashMap<Integer, List<Integer>> appAllocMap = new HashMap();
 
+        conn.insertInto(allocTable)
+                .set(allocTable.APPLICATION, 1)
+                .set(allocTable.CORES, 3)
+                .set(allocTable.MEMSLICES, 3)
+                .set(allocTable.STATUS, "PLACED")
+                .set(allocTable.CURRENT_NODE, 3)
+                .set(allocTable.CONTROLLABLE__NODE, 3)
+                .execute();
+        conn.insertInto(allocTable)
+                .set(allocTable.APPLICATION, 1)
+                .set(allocTable.CORES, 3)
+                .set(allocTable.MEMSLICES, 3)
+                .set(allocTable.STATUS, "PLACED")
+                .set(allocTable.CURRENT_NODE, 3)
+                .set(allocTable.CONTROLLABLE__NODE, 3)
+                .execute();
+        conn.insertInto(allocTable)
+                .set(allocTable.APPLICATION, 1)
+                .set(allocTable.CORES, 3)
+                .set(allocTable.MEMSLICES, 3)
+                .set(allocTable.STATUS, "PLACED")
+                .set(allocTable.CURRENT_NODE, 4)
+                .set(allocTable.CONTROLLABLE__NODE, 3)
+                .execute();
+
+        System.out.println("Merged resources:");
+        System.out.println(conn.fetch("select * from merged_resources"));
+        System.out.println("Before Merge:");
+        System.out.println(conn.fetch("select * from allocations"));
+        // h2db disallows merge-match-delete commands, so do this in two commands :(
+        String updateMerged = "update allocations a\n" +
+                "set a.cores = (select m.cores from merged_resources m where m.id = a.id), " +
+                "    a.memslices = (select m.memslices from merged_resources m where m.id = a.id)\n" +
+                "where exists\n" +
+                "(select * from merged_resources m where m.id = a.id)";
+        conn.execute(updateMerged);
+        String deleteMerged = "delete from allocations " +
+                "where id not in (select m.id from merged_resources m)";
+        conn.execute(deleteMerged);
+
+        System.out.println("After Merge:");
+        System.out.println(conn.fetch("select * from allocations"));
+        System.exit(-1);
+
+
         // Assign cores the applications
         for (int i = 0; i < coreAllocs; i++) {
             int application = rand.nextInt(numApplications) + 1;
@@ -423,14 +392,14 @@ public class SimulationRunner {
                 int node = rand.nextInt(numNodes) + 1;
 
                 // figure out how many cores/memslices we can alloc on that node
-                String sql = String.format("select sum(allocations.cores) from allocations where node = %d", node);
+                String sql = String.format("select sum(allocations.cores) from allocations where current_node = %d", node);
                 int coresUsed = 0;
                 try {
                     coresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
                 } catch (NullPointerException e) {}
                 int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
-                sql = String.format("select sum(allocations.memslices) from allocations where node = %d", node);
+                sql = String.format("select sum(allocations.memslices) from allocations where current_node = %d", node);
                 int memslicesUsed = 0;
                 try {
                     memslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
@@ -439,22 +408,14 @@ public class SimulationRunner {
 
                 // If we can alloc anything, do so
                 if (coresToAlloc > 0 || memslicesToAlloc > 0) {
-                    // If row for (node, application) doesn't exist in allocState table, create it. Otherwise, update it.
-                    if (!conn.fetchExists(conn.selectFrom(allocTable).
-                            where(and(allocTable.NODE.eq(node), allocTable.APPLICATION.eq(application))))) {
-                        conn.insertInto(allocTable)
-                                .set(allocTable.APPLICATION, application)
-                                .set(allocTable.NODE, node)
-                                .set(allocTable.MEMSLICES, memslicesToAlloc)
-                                .set(allocTable.CORES, coresToAlloc)
-                                .execute();
-                    } else {
-                        conn.update(allocTable)
-                                .set(allocTable.CORES, allocTable.CORES.plus(coresToAlloc))
-                                .set(allocTable.MEMSLICES, allocTable.MEMSLICES.plus(memslicesToAlloc))
-                                .where(and(allocTable.NODE.eq(node), allocTable.APPLICATION.eq(application)))
-                                .execute();
-                    }
+                    conn.insertInto(allocTable)
+                            .set(allocTable.APPLICATION, application)
+                            .set(allocTable.CORES, coresToAlloc)
+                            .set(allocTable.MEMSLICES, memslicesToAlloc)
+                            .set(allocTable.STATUS, "PLACED")
+                            .set(allocTable.CURRENT_NODE, node)
+                            .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                            .execute();
 
                     // Mark resources as allocated
                     cores -= coresToAlloc;
@@ -462,6 +423,8 @@ public class SimulationRunner {
                 }
             }
         }
+
+        System.out.println(conn.fetch("select * from allocations"));
 
         // Double check correctness
         String sql = "select sum(allocations.cores) from allocations";
@@ -471,7 +434,7 @@ public class SimulationRunner {
         sql = "create view nodeSums as select nodes.id, sum(allocations.cores) as cores, sum(allocations.memslices) as memslices " +
                 "from allocations " +
                 "join nodes " +
-                "  on nodes.id = allocations.node " +
+                "  on nodes.id = allocations.current_node " +
                 "group by nodes.id, nodes.cores, nodes.memslices";
         conn.execute(sql);
         sql = "select max(nodeSums.cores) from nodeSums";
@@ -487,6 +450,7 @@ public class SimulationRunner {
                 totalCoresUsed, coreAllocs, maxCoresUsed, coresPerNode));
         LOG.info(String.format("Total memslices used: %d/%d, Max memslices per node: %d/%d",
                 totalMemslicesUsed, memsliceAllocs, maxMemslicesUsed, memslicesPerNode));
+
     }
 
     private static Model createModel(final DSLContext conn) {
@@ -494,15 +458,15 @@ public class SimulationRunner {
         // All DCM solvers need to have this constraint
         // TODO: do I actually need that constraint now?? current_node??
         final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from pending where status = 'PLACED' check current_node = controllable__node";
+                " select * from allocations where status = 'PLACED' check current_node = controllable__node";
 
-        // View of pending resources on nodes for both memslices and cores
+        // View of spare resources per node for both memslices and cores
         final String spare_view = "create constraint spare_view as " +
-                "select spare_placed_view.id, spare_placed_view.cores - sum(pending.cores) as cores, spare_placed_view.memslices - sum(pending.memslices) as memslices " +
-                "from pending " +
-                "join spare_placed_view " +
-                "  on spare_placed_view.id = pending.controllable__node " +
-                "group by spare_placed_view.id, spare_placed_view.cores, spare_placed_view.memslices";
+                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
+                "from allocations " +
+                "join nodes " +
+                "  on nodes.id = allocations.controllable__node " +
+                "group by nodes.id, nodes.cores, nodes.memslices";
 
         // Capacity core constraint (e.g., can only use what is available on each node)
         final String capacity_constraint = "create constraint capacity_constraint as " +
@@ -538,8 +502,9 @@ public class SimulationRunner {
     }
 
     private static void printStats(final DSLContext conn) {
-        System.out.print("Spare resources per node:");
-        System.out.println(conn.fetch("select * from spare_placed_view"));
+        // TODO: check resources??
+        //System.out.print("Spare resources per node:");
+        //System.out.println(conn.fetch("select * from spare_view"));
         // TODO: print application statistics
         // TODO: print statistics on cluster usage
     }

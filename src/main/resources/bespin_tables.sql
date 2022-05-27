@@ -9,16 +9,7 @@ create table applications(
     primary key (id));
 
 create table allocations(
-    application integer,
-    node integer,
-    cores integer,
-    memslices integer,
-	foreign key (node) references nodes(id),
-	foreign key (application) references applications(id),
-	primary key (application, node));
-
-create table pending(
-    id integer,
+    id integer not null auto_increment,
     application integer,
     cores integer,
     memslices integer,
