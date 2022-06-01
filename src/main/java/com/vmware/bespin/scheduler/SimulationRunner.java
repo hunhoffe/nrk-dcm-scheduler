@@ -446,25 +446,23 @@ public class SimulationRunner {
                 "maximize min(memslices)";
 
         // Minimize number of nodes per application (e.g., maximize locality)
-        // TODO: count (distinct) doesn't work due to distinct, we want: soft constraint version of all equal
-        final String app_locality_view = "create constraint app_locality_view as " +
-                "select count(distinct allocations.controllable__node) as num_nodes " +
-                "from allocations " +
-                "group by application";
-        final String app_locality_constraint = "create constraint app_locality_constraint as " +
-                "select * from app_locality_view " +
-                "maximize -1*sum(num_nodes)";
-        final String locality_hard_constraint = "create constraint app_local_constraint as " +
-                "select * from allocations " +
-                "where status = 'PENDING' " +
-                "group by application " +
-                "check all_equal(allocations.controllable__node) = true";
+
         // could do two constraints, when you place a pending application two cases:
         // there are no existing placements (above is good)
         // allocations on controllable node should be in set (of existing placements) if set exists
 
         // https://github.com/vmware/declarative-cluster-management/blob/master/k8s-scheduler/src/main/java/com/vmware/dcm/Policies.java#L102
         // Like 98 -> change check to maximize to make it soft.
+        final String app_locality_constraint = "create constraint app_locality_constraint as " +
+                "select * " +
+                "from allocations " +
+                "where status = 'PENDING' " +
+                "maximize " +
+                "      allocations.controllable__node in " +
+                "         (select b.controllable__node" +
+                "          from allocations as b " +
+                "          where b.application = allocations.application " +
+                "       )";
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
@@ -474,7 +472,8 @@ public class SimulationRunner {
                 spare_view,
                 capacity_constraint,
                 node_balance_cores_constraint,
-                node_balance_memslices_constraint
+                node_balance_memslices_constraint,
+                app_locality_constraint
                 //locality_hard_constraint
                 //app_locality_view,
                 //app_locality_constraint
