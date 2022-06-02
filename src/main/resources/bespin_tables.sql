@@ -8,7 +8,7 @@ create table applications(
     id integer,
     primary key (id));
 
-create table allocations(
+create table pending(
     id integer not null auto_increment,
     application integer,
     cores integer,
@@ -19,3 +19,12 @@ create table allocations(
 	foreign key (controllable__node) references nodes(id),
 	foreign key (application) references applications(id),
 	primary key (id));
+
+create table placed(
+    application integer,
+    node integer,
+    cores integer,
+    memslices integer,
+	foreign key (node) references nodes(id),
+	foreign key (application) references applications(id),
+	primary key (application, node));

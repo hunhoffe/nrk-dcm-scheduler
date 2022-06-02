@@ -5,7 +5,8 @@ import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
 
-import com.vmware.bespin.scheduler.generated.tables.Allocations;
+import com.vmware.bespin.scheduler.generated.tables.Pending;
+import com.vmware.bespin.scheduler.generated.tables.Placed;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
 
@@ -24,6 +25,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.math.BigDecimal;
 
 class Simulation
 {
@@ -38,7 +40,8 @@ class Simulation
     static final int MIN_TURNOVER = 1;
     static final int MAX_TURNOVER = 5;
 
-    static final Allocations allocTable = Allocations.ALLOCATIONS;
+    static final Pending pendingTable = Pending.PENDING;
+    static final Placed placedTable = Placed.PLACED;
     static final Nodes nodeTable = Nodes.NODES;
 
     private static final Random rand = new Random();
@@ -66,26 +69,26 @@ class Simulation
             if (usedCores > minCoreAllocations) {
                 if (usedCores >= maxCoreAllocations || rand.nextBoolean()) {
                     // delete core allocation, do not count as turnover
-                    Result<Record> results = conn.select().from(allocTable).where(
-                            and(allocTable.CORES.greaterThan(0), allocTable.STATUS.eq("PLACED"))).fetch();
+                    Result<Record> results = conn.select().from(placedTable).where(
+                            placedTable.CORES.greaterThan(0)).fetch();
                     Record rowToDelete = results.get(rand.nextInt(results.size()));
-                    conn.update(allocTable)
-                            .set(allocTable.CORES, allocTable.CORES.minus(1))
+                    conn.update(placedTable)
+                            .set(placedTable.CORES, placedTable.CORES.minus(1))
                             .where(and(
-                                    allocTable.CURRENT_NODE.eq(rowToDelete.getValue(allocTable.CURRENT_NODE)),
-                                    allocTable.APPLICATION.eq(rowToDelete.get(allocTable.APPLICATION))))
+                                    placedTable.NODE.eq(rowToDelete.getValue(placedTable.NODE)),
+                                    placedTable.APPLICATION.eq(rowToDelete.get(placedTable.APPLICATION))))
                             .execute();
                 }
             }
             // Add a pending allocation, count as turnover
             if (usedCores < maxCoreAllocations) {
-                conn.insertInto(allocTable)
-                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
-                        .set(allocTable.CORES, 1)
-                        .set(allocTable.MEMSLICES, 0)
-                        .set(allocTable.STATUS, "PENDING")
-                        .set(allocTable.CURRENT_NODE, -1)
-                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                conn.insertInto(pendingTable)
+                        .set(pendingTable.APPLICATION, this.chooseRandomApplication())
+                        .set(pendingTable.CORES, 1)
+                        .set(pendingTable.MEMSLICES, 0)
+                        .set(pendingTable.STATUS, "PENDING")
+                        .set(pendingTable.CURRENT_NODE, -1)
+                        .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
             }
@@ -104,34 +107,34 @@ class Simulation
             int usedMemslices = this.usedMemslices();
             if (usedMemslices > minMemsliceAllocations) {
                 if (usedMemslices >= maxMemsliceAllocations || rand.nextBoolean()) {
-                    // delete core allocation, do not count as turnover
-                    Result<Record> results = conn.select().from(allocTable).where(
-                            and(allocTable.MEMSLICES.greaterThan(0), allocTable.STATUS.eq("PLACED"))).fetch();
+                    // delete memslice allocation, do not count as turnover
+                    Result<Record> results = conn.select().from(placedTable).where(
+                            placedTable.MEMSLICES.greaterThan(0)).fetch();
                     Record rowToDelete = results.get(rand.nextInt(results.size()));
-                    conn.update(allocTable)
-                            .set(allocTable.MEMSLICES, allocTable.MEMSLICES.minus(1))
+                    conn.update(placedTable)
+                            .set(placedTable.MEMSLICES, placedTable.MEMSLICES.minus(1))
                             .where(and(
-                                    allocTable.CURRENT_NODE.eq(rowToDelete.getValue(allocTable.CURRENT_NODE)),
-                                    allocTable.APPLICATION.eq(rowToDelete.get(allocTable.APPLICATION))))
+                                    placedTable.NODE.eq(rowToDelete.getValue(placedTable.NODE)),
+                                    placedTable.APPLICATION.eq(rowToDelete.get(placedTable.APPLICATION))))
                             .execute();
                 }
             }
             // Add an allocation, count as turnover
             if (usedMemslices < maxMemsliceAllocations) {
-                conn.insertInto(allocTable)
-                        .set(allocTable.APPLICATION, this.chooseRandomApplication())
-                        .set(allocTable.CORES, 0)
-                        .set(allocTable.MEMSLICES, 1)
-                        .set(allocTable.STATUS, "PENDING")
-                        .set(allocTable.CURRENT_NODE, -1)
-                        .set(allocTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                conn.insertInto(pendingTable)
+                        .set(pendingTable.APPLICATION, this.chooseRandomApplication())
+                        .set(pendingTable.CORES, 0)
+                        .set(pendingTable.MEMSLICES, 1)
+                        .set(pendingTable.STATUS, "PENDING")
+                        .set(pendingTable.CURRENT_NODE, -1)
+                        .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                         .execute();
                 turnoverCounter++;
             }
         }
 
         // Remove any empty rows that may be produced
-        String deleteEmpty = "delete from allocations " +
+        String deleteEmpty = "delete from placed " +
                 "where cores = 0 and memslices = 0";
         conn.execute(deleteEmpty);
     }
@@ -139,7 +142,7 @@ class Simulation
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results;
         try {
-            results = model.solve("ALLOCATIONS");
+            results = model.solve("PENDING");
         } catch (ModelException e) {
             throw e;
             //return false;
@@ -151,10 +154,10 @@ class Simulation
         // Update database to finalized assignment
         final List<Update<?>> updates = new ArrayList<>();
         results.forEach(r -> {
-                    updates.add(conn.update(allocTable)
-                            .set(allocTable.CURRENT_NODE, (Integer) r.get("CONTROLLABLE__NODE"))
-                            .set(allocTable.STATUS, "PLACED")
-                            .where(and(allocTable.ID.eq((Integer) r.get("ID")), allocTable.STATUS.eq("PENDING")))
+                    updates.add(conn.update(pendingTable)
+                            .set(pendingTable.CURRENT_NODE, (Integer) r.get("CONTROLLABLE__NODE"))
+                            .set(pendingTable.STATUS, "PLACED")
+                            .where(and(pendingTable.ID.eq((Integer) r.get("ID")), pendingTable.STATUS.eq("PENDING")))
                     );
             }
         );
@@ -165,17 +168,17 @@ class Simulation
 
         // Merge rows when possible
         // h2db disallows merge-match-delete commands, so do this in two commands :(
-        String updateMerged = "update allocations a\n" +
+        String updateMerged = "update placed a\n" +
                 "set a.cores = (select m.cores from merged_resources m where m.id = a.id), " +
                 "    a.memslices = (select m.memslices from merged_resources m where m.id = a.id)\n " +
                 "where a.status = 'PLACED' and " +
                 "    exists\n" +
                 "(select * from merged_resources m where m.id = a.id)";
         conn.execute(updateMerged);
-        String deleteMerged = "delete from allocations " +
+        String deleteMerged = "delete from placed " +
                 "where id not in (select m.id from merged_resources m) and status = 'PLACED'";
         conn.execute(deleteMerged);
-        String deleteEmpty = "delete from allocations " +
+        String deleteEmpty = "delete from placed " +
                 "where cores = 0 and memslices = 0";
         conn.execute(deleteEmpty);
 
@@ -289,17 +292,31 @@ public class SimulationRunner {
             throw new RuntimeException(e);
         }
 
-        conn.execute("create view merged_resources as " +
-                "select max(id) as id, sum(cores) as cores, sum(memslices) as memslices, application, " +
-                "    status, current_node from allocations " +
-                "where status = 'PLACED' " +
-                "group by application, current_node");
+        // View to see totals of placed resources at each node
+        conn.execute("create view allocated as " +
+                "select node, sum(cores) as cores, sum(memslices) as memslices " +
+                "from placed " +
+                "group by node");
+
+        conn.execute("create view unallocated as " +
+                "select nodes.id, nodes.cores - sum(placed.cores) as cores, " +
+                "    nodes.memslices - sum(placed.memslices) as memslices " +
+                "from placed " +
+                "join nodes " +
+                "  on nodes.id = placed.node " +
+                "group by nodes.id");
+
+        // View to see the nodes each application is placed on
+        conn.execute("create view app_nodes as " +
+                "select application, node " +
+                "from placed " +
+                "group by application, node");
     }
 
     private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
         final Nodes nodeTable = Nodes.NODES;
         final Applications appTable = Applications.APPLICATIONS;
-        final Allocations allocTable = Allocations.ALLOCATIONS;
+        final Placed placedTable = Placed.PLACED;
 
         Random rand = new Random();
         setupDb(conn);
@@ -358,29 +375,28 @@ public class SimulationRunner {
                 int node = rand.nextInt(numNodes) + 1;
 
                 // figure out how many cores/memslices we can alloc on that node
-                String sql = String.format("select sum(allocations.cores) from allocations where current_node = %d", node);
+                String sql = String.format("select cores from allocated where node = %d", node);
                 int coresUsed = 0;
                 try {
                     coresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
-                } catch (NullPointerException e) {}
+                } catch (NullPointerException | IndexOutOfBoundsException e) {}
                 int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
-                sql = String.format("select sum(allocations.memslices) from allocations where current_node = %d", node);
+                sql = String.format("select memslices from allocated where node = %d", node);
                 int memslicesUsed = 0;
                 try {
                     memslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
-                } catch (NullPointerException e) {}
+                } catch (NullPointerException | IndexOutOfBoundsException e) {}
                 int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
                 // If we can alloc anything, do so
                 if (coresToAlloc > 0 || memslicesToAlloc > 0) {
-                    conn.insertInto(allocTable)
-                            .set(allocTable.APPLICATION, application)
-                            .set(allocTable.CORES, coresToAlloc)
-                            .set(allocTable.MEMSLICES, memslicesToAlloc)
-                            .set(allocTable.STATUS, "PLACED")
-                            .set(allocTable.CURRENT_NODE, node)
-                            .set(allocTable.CONTROLLABLE__NODE, node)
+                    conn.insertInto(placedTable,
+                                    placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, placedTable.MEMSLICES)
+                            .values(application, node, coresToAlloc, memslicesToAlloc)
+                            .onDuplicateKeyUpdate()
+                            .set(placedTable.CORES,  placedTable.CORES.plus(coresToAlloc))
+                            .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus(memslicesToAlloc))
                             .execute();
 
                     // Mark resources as allocated
@@ -391,19 +407,13 @@ public class SimulationRunner {
         }
 
         // Double check correctness
-        String sql = "select sum(allocations.cores) from allocations";
-        int totalCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
-        sql = "select sum(allocations.memslices) from allocations";
-        int totalMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
-        sql = "create view nodeSums as select nodes.id, sum(allocations.cores) as cores, sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.current_node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        conn.execute(sql);
-        sql = "select max(nodeSums.cores) from nodeSums";
+        String sql = "select sum(cores) from allocated";
+        int totalCoresUsed = ((BigDecimal) conn.fetch(sql).get(0).getValue(0)).intValue();
+        sql = "select sum(memslices) from allocated";
+        int totalMemslicesUsed = ((BigDecimal) conn.fetch(sql).get(0).getValue(0)).intValue();
+        sql = "select max(cores) from allocated";
         int maxCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
-        sql = "select max(nodeSums.memslices) from nodeSums";
+        sql = "select max(memslices) from allocated";
         int maxMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
         assert(totalCoresUsed == coreAllocs);
         assert(maxCoresUsed <= coresPerNode);
@@ -435,7 +445,7 @@ public class SimulationRunner {
         final String capacity_constraint = "create constraint capacity_constraint as " +
                 " select * from spare_view check cores >= 0 and memslices >= 0";
 
-        // TODO: could scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
+        // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
         // Create load balancing constraint across nodes for cores and memslices
         final String node_balance_cores_constraint = "create constraint node_balance_cores_constraint as " +
                 "select cores from spare_view " +
@@ -446,23 +456,12 @@ public class SimulationRunner {
                 "maximize min(memslices)";
 
         // Minimize number of nodes per application (e.g., maximize locality)
-
+        // TODO: write this.
         // could do two constraints, when you place a pending application two cases:
         // there are no existing placements (above is good)
         // allocations on controllable node should be in set (of existing placements) if set exists
-
         // https://github.com/vmware/declarative-cluster-management/blob/master/k8s-scheduler/src/main/java/com/vmware/dcm/Policies.java#L102
         // Like 98 -> change check to maximize to make it soft.
-        final String app_locality_constraint = "create constraint app_locality_constraint as " +
-                "select * " +
-                "from allocations " +
-                "where status = 'PENDING' " +
-                "maximize " +
-                "      allocations.controllable__node in " +
-                "         (select b.controllable__node" +
-                "          from allocations as b " +
-                "          where b.application = allocations.application " +
-                "       )";
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
@@ -472,8 +471,7 @@ public class SimulationRunner {
                 spare_view,
                 capacity_constraint,
                 node_balance_cores_constraint,
-                node_balance_memslices_constraint,
-                app_locality_constraint
+                node_balance_memslices_constraint
                 //locality_hard_constraint
                 //app_locality_view,
                 //app_locality_constraint
@@ -481,24 +479,22 @@ public class SimulationRunner {
     }
 
     private static void printStats(final DSLContext conn) {
-        System.out.println("Spare resources per node:");
-        final String spare_view = "select nodes.id, nodes.cores - sum(allocations.cores) as cores, " +
-                "    nodes.memslices - sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
-        System.out.println(conn.fetch(spare_view));
+
+        // print resource usage statistics by node
+        System.out.println("Allocated resources per node:");
+        final String allocated_resources = "select * from allocated";
+        System.out.println(conn.fetch(allocated_resources));
+        System.out.println("Unallocated resources per node:");
+        final String unallocated_resources = "select * from unallocated";
+        System.out.println(conn.fetch(unallocated_resources));
 
         // print application statistics
         System.out.println("Nodes per application: ");
-        final String nodes_per_app_view = "select application, sum(cores) as cores, sum(memslices) as memslices, count(distinct allocations.controllable__node) as num_nodes " +
-                "from allocations " +
+        final String nodes_per_app_view = "select application, sum(cores) as cores, sum(memslices) as memslices, " +
+                "    count(distinct placed.node) as num_nodes " +
+                "from placed " +
                 "group by application";
         System.out.println(conn.fetch(nodes_per_app_view));
-
-        System.out.println("Number of allocations: ");
-        System.out.println(conn.fetch("select count(*) as num_allocations from allocations"));
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
