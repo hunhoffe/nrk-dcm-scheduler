@@ -133,7 +133,7 @@ class Simulation
             }
         }
 
-        // Remove any empty rows that may be produced
+        // Remove any empty rows that may have been produced
         String deleteEmpty = "delete from placed " +
                 "where cores = 0 and memslices = 0";
         conn.execute(deleteEmpty);
@@ -151,40 +151,20 @@ class Simulation
             //return false;
         }
 
-        // Update database to finalized assignment
-        final List<Update<?>> updates = new ArrayList<>();
+        // TODO: should find a way to batch these
+        // Add new assignments to placed, remove new assignments from pending
         results.forEach(r -> {
-                    updates.add(conn.update(pendingTable)
-                            .set(pendingTable.CURRENT_NODE, (Integer) r.get("CONTROLLABLE__NODE"))
-                            .set(pendingTable.STATUS, "PLACED")
-                            .where(and(pendingTable.ID.eq((Integer) r.get("ID")), pendingTable.STATUS.eq("PENDING")))
-                    );
+            conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, placedTable.MEMSLICES)
+                    .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"), (int) r.get("MEMSLICES"))
+                    .onDuplicateKeyUpdate()
+                    .set(placedTable.CORES,  placedTable.CORES.plus((int) r.get("CORES")))
+                    .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus((int) r.get("MEMSLICES")))
+                    .execute();
+            conn.deleteFrom(pendingTable)
+                    .where(pendingTable.ID.eq((int) r.get("ID")))
+                    .execute();
             }
         );
-        conn.batch(updates).execute();
-
-        int usedCores = this.usedCores();
-        int usedMemslices = this.usedMemslices();
-
-        // Merge rows when possible
-        // h2db disallows merge-match-delete commands, so do this in two commands :(
-        String updateMerged = "update placed a\n" +
-                "set a.cores = (select m.cores from merged_resources m where m.id = a.id), " +
-                "    a.memslices = (select m.memslices from merged_resources m where m.id = a.id)\n " +
-                "where a.status = 'PLACED' and " +
-                "    exists\n" +
-                "(select * from merged_resources m where m.id = a.id)";
-        conn.execute(updateMerged);
-        String deleteMerged = "delete from placed " +
-                "where id not in (select m.id from merged_resources m) and status = 'PLACED'";
-        conn.execute(deleteMerged);
-        String deleteEmpty = "delete from placed " +
-                "where cores = 0 and memslices = 0";
-        conn.execute(deleteEmpty);
-
-        // Triple check above command didn't change anything.
-        assert(usedCores == this.usedCores());
-        assert(usedMemslices == this.usedMemslices());
         return true;
     }
 
@@ -200,7 +180,7 @@ class Simulation
         Result<Record> results = conn.fetch("select id from nodes");
         for (Record r: results) {
             int node = r.getValue(nodeTable.ID);
-            final String allocatedCoresSQL = String.format("select sum(allocations.cores) from allocations where current_node = %d", node);
+            final String allocatedCoresSQL = String.format("select sum(placed.cores) from placed where node = %d", node);
             final String coresAvailableSQL = String.format("select cores from nodes where id = %d", node);
             Long usedCores = 0L;
             int coreCapacity = 0;
@@ -213,7 +193,7 @@ class Simulation
 
             nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores.intValue());
 
-            final String allocatedMemslicesSQL = String.format("select sum(allocations.memslices) from allocations where current_node = %d", node);
+            final String allocatedMemslicesSQL = String.format("select sum(placed.memslices) from placed where node = %d", node);
             final String memslicesAvailableSQL = String.format("select memslices from nodes where id = %d", node);
             Long usedMemslices = 0L;
             int memsliceCapacity = 0;
@@ -231,7 +211,7 @@ class Simulation
     }
 
     private int usedCores() {
-        final String allocatedCoresSQL = "select sum(allocations.cores) from allocations";
+        final String allocatedCoresSQL = "select sum(cores) from placed";
         Long usedCores = 0L;
         try {
             usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
@@ -240,12 +220,12 @@ class Simulation
     }
 
     private int coreCapacity() {
-        final String totalCores = "select sum(nodes.cores) from nodes";
+        final String totalCores = "select sum(cores) from nodes";
         return ((Long) this.conn.fetch(totalCores).get(0).getValue(0)).intValue();
     }
 
     private int usedMemslices() {
-        final String allocatedMemslicesSQL = "select sum(allocations.memslices) from allocations";
+        final String allocatedMemslicesSQL = "select sum(memslices) from placed";
         Long usedMemslices = 0L;
         try {
             usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
@@ -254,7 +234,7 @@ class Simulation
     }
 
     private int memsliceCapacity() {
-        final String totalMemslices = "select sum(nodes.memslices) from nodes";
+        final String totalMemslices = "select sum(memslices) from nodes";
         return ((Long) this.conn.fetch(totalMemslices).get(0).getValue(0)).intValue();
     }
 
@@ -294,13 +274,13 @@ public class SimulationRunner {
 
         // View to see totals of placed resources at each node
         conn.execute("create view allocated as " +
-                "select node, sum(cores) as cores, sum(memslices) as memslices " +
+                "select node, cast(sum(cores) as int) as cores, cast(sum(memslices) as int) as memslices " +
                 "from placed " +
                 "group by node");
 
         conn.execute("create view unallocated as " +
-                "select nodes.id, nodes.cores - sum(placed.cores) as cores, " +
-                "    nodes.memslices - sum(placed.memslices) as memslices " +
+                "select nodes.id as node, cast(nodes.cores - sum(placed.cores) as int) as cores, " +
+                "    cast(nodes.memslices -sum(placed.memslices) as int) as memslices " +
                 "from placed " +
                 "join nodes " +
                 "  on nodes.id = placed.node " +
@@ -378,14 +358,14 @@ public class SimulationRunner {
                 String sql = String.format("select cores from allocated where node = %d", node);
                 int coresUsed = 0;
                 try {
-                    coresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+                    coresUsed = (int) conn.fetch(sql).get(0).getValue(0);
                 } catch (NullPointerException | IndexOutOfBoundsException e) {}
                 int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
                 sql = String.format("select memslices from allocated where node = %d", node);
                 int memslicesUsed = 0;
                 try {
-                    memslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+                    memslicesUsed = (int) conn.fetch(sql).get(0).getValue(0);
                 } catch (NullPointerException | IndexOutOfBoundsException e) {}
                 int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
@@ -408,13 +388,13 @@ public class SimulationRunner {
 
         // Double check correctness
         String sql = "select sum(cores) from allocated";
-        int totalCoresUsed = ((BigDecimal) conn.fetch(sql).get(0).getValue(0)).intValue();
+        int totalCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
         sql = "select sum(memslices) from allocated";
-        int totalMemslicesUsed = ((BigDecimal) conn.fetch(sql).get(0).getValue(0)).intValue();
+        int totalMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
         sql = "select max(cores) from allocated";
-        int maxCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        int maxCoresUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
         sql = "select max(memslices) from allocated";
-        int maxMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+        int maxMemslicesUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
         assert(totalCoresUsed == coreAllocs);
         assert(maxCoresUsed <= coresPerNode);
         assert(totalMemslicesUsed == memsliceAllocs);
@@ -431,15 +411,16 @@ public class SimulationRunner {
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
         final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from allocations where status = 'PLACED' check current_node = controllable__node";
+                " select * from pending where status = 'PLACED' check current_node = controllable__node";
 
         // View of spare resources per node for both memslices and cores
         final String spare_view = "create constraint spare_view as " +
-                "select nodes.id, nodes.cores - sum(allocations.cores) as cores, nodes.memslices - sum(allocations.memslices) as memslices " +
-                "from allocations " +
-                "join nodes " +
-                "  on nodes.id = allocations.controllable__node " +
-                "group by nodes.id, nodes.cores, nodes.memslices";
+                "select unallocated.node, unallocated.cores - sum(pending.cores) as cores, " +
+                "    unallocated.memslices - sum(pending.memslices) as memslices " +
+                "from pending " +
+                "join unallocated " +
+                "  on unallocated.node = pending.controllable__node " +
+                "group by unallocated.node, unallocated.cores, unallocated.memslices";
 
         // Capacity core constraint (e.g., can only use what is available on each node)
         final String capacity_constraint = "create constraint capacity_constraint as " +
@@ -469,9 +450,9 @@ public class SimulationRunner {
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
                 spare_view,
-                capacity_constraint,
-                node_balance_cores_constraint,
-                node_balance_memslices_constraint
+                capacity_constraint
+                //node_balance_cores_constraint,
+                //node_balance_memslices_constraint
                 //locality_hard_constraint
                 //app_locality_view,
                 //app_locality_constraint
@@ -481,9 +462,6 @@ public class SimulationRunner {
     private static void printStats(final DSLContext conn) {
 
         // print resource usage statistics by node
-        System.out.println("Allocated resources per node:");
-        final String allocated_resources = "select * from allocated";
-        System.out.println(conn.fetch(allocated_resources));
         System.out.println("Unallocated resources per node:");
         final String unallocated_resources = "select * from unallocated";
         System.out.println(conn.fetch(unallocated_resources));
@@ -491,10 +469,17 @@ public class SimulationRunner {
         // print application statistics
         System.out.println("Nodes per application: ");
         final String nodes_per_app_view = "select application, sum(cores) as cores, sum(memslices) as memslices, " +
-                "    count(distinct placed.node) as num_nodes " +
+                "    count(distinct node) as num_nodes " +
                 "from placed " +
                 "group by application";
         System.out.println(conn.fetch(nodes_per_app_view));
+        final String nodes_per_app_view2 = "select application, count(distinct node) as num_nodes " +
+                "from app_nodes " +
+                "group by application";
+        System.out.println(conn.fetch(nodes_per_app_view2));
+
+        System.out.println("Pending requests: ");
+        System.out.println(conn.fetch("select * from pending"));
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
