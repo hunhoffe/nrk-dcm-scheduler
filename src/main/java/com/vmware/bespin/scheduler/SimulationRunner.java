@@ -44,7 +44,7 @@ class Simulation
     static final Placed placedTable = Placed.PLACED;
     static final Nodes nodeTable = Nodes.NODES;
 
-    private static final Random rand = new Random();
+    private static final Random rand = new Random(0);
 
     Simulation(Model model, DSLContext conn) {
         this.model = model;
@@ -413,49 +413,57 @@ public class SimulationRunner {
         final String placed_constraint = "create constraint placed_constraint as " +
                 " select * from pending where status = 'PLACED' check current_node = controllable__node";
 
-        // View of spare resources per node for both memslices and cores
-        final String spare_view = "create constraint spare_view as " +
-                "select unallocated.node, unallocated.cores - sum(pending.cores) as cores, " +
-                "    unallocated.memslices - sum(pending.memslices) as memslices " +
-                "from pending " +
+        // this will replace two above, and balance constraint below
+        final String core_cap = "create constraint core_cap as " +
+                "select * from pending " +
                 "join unallocated " +
-                "  on unallocated.node = pending.controllable__node " +
-                "group by unallocated.node, unallocated.cores, unallocated.memslices";
+                " on unallocated.node = pending.controllable__node " +
+                "check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true ";
 
-        // Capacity core constraint (e.g., can only use what is available on each node)
-        final String capacity_constraint = "create constraint capacity_constraint as " +
-                " select * from spare_view check cores >= 0 and memslices >= 0";
+        final String mem_cap = "create constraint mem_cap as " +
+                "select * from pending " +
+                "join unallocated " +
+                " on unallocated.node = pending.controllable__node " +
+                "check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true";
 
-        // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
-        // Create load balancing constraint across nodes for cores and memslices
-        final String node_balance_cores_constraint = "create constraint node_balance_cores_constraint as " +
-                "select cores from spare_view " +
-                "maximize min(cores)";
-        // Create load balancing constraint across nodes for cores and memslices
-        final String node_balance_memslices_constraint = "create constraint node_balance_memslices_constraint as " +
-                "select memslices from spare_view " +
-                "maximize min(memslices)";
+        // View to see the nodes each application is placed on
+        final String pending_app_nodes = "create constraint pending_app_nodes as " +
+                "select application, controllable__node, max(id) as max_id, min(id) as min_id " +
+                "from pending " +
+                "group by application, controllable__node";
 
-        // Minimize number of nodes per application (e.g., maximize locality)
-        // TODO: write this.
-        // could do two constraints, when you place a pending application two cases:
-        // there are no existing placements (above is good)
-        // allocations on controllable node should be in set (of existing placements) if set exists
-        // https://github.com/vmware/declarative-cluster-management/blob/master/k8s-scheduler/src/main/java/com/vmware/dcm/Policies.java#L102
-        // Like 98 -> change check to maximize to make it soft.
+        final String app_locality_constraint = "create constraint app_locality_constraint as " +
+                "select * " +
+                "from pending " +
+                "maximize " +
+                // Locality to other to pending allocations
+                "      (pending.controllable__node in " +
+                "         (select b.controllable__node " +
+                "          from pending as b " +
+                "          where b.application = pending.application " +
+                "           and not b.id = pending.id" +
+                "       ))" +
+
+                // Locality to placed allocations
+                "   or (pending.controllable__node in " +
+                "         (select node " +
+                "          from app_nodes " +
+                "          where app_nodes.application = pending.application" +
+                "         )) ";  // running pods
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
-                .setMaxTimeInSeconds(120);
+                .setMaxTimeInSeconds(300);
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
-                spare_view,
-                capacity_constraint
+                //spare_view,
+                //capacity_constraint,
                 //node_balance_cores_constraint,
-                //node_balance_memslices_constraint
-                //locality_hard_constraint
-                //app_locality_view,
-                //app_locality_constraint
+                //node_balance_memslices_constraint,
+                core_cap,
+                mem_cap,
+                //pending_app_nodes,
+                app_locality_constraint
         ));
     }
 
@@ -467,19 +475,12 @@ public class SimulationRunner {
         System.out.println(conn.fetch(unallocated_resources));
 
         // print application statistics
-        System.out.println("Nodes per application: ");
+        System.out.println("Application resources per node: ");
         final String nodes_per_app_view = "select application, sum(cores) as cores, sum(memslices) as memslices, " +
                 "    count(distinct node) as num_nodes " +
                 "from placed " +
                 "group by application";
         System.out.println(conn.fetch(nodes_per_app_view));
-        final String nodes_per_app_view2 = "select application, count(distinct node) as num_nodes " +
-                "from app_nodes " +
-                "group by application";
-        System.out.println(conn.fetch(nodes_per_app_view2));
-
-        System.out.println("Pending requests: ");
-        System.out.println(conn.fetch("select * from pending"));
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
