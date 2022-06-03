@@ -180,10 +180,10 @@ class Simulation
             int coreCapacity = 0;
             try {
                 usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
+            } catch (NullPointerException ignored) {}
             try {
                 coreCapacity = (int) this.conn.fetch(coresAvailableSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
+            } catch (NullPointerException ignored) {}
 
             nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores.intValue());
 
@@ -193,10 +193,10 @@ class Simulation
             int memsliceCapacity = 0;
             try {
                 usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
+            } catch (NullPointerException ignored) {}
             try {
                 memsliceCapacity = (int) this.conn.fetch(memslicesAvailableSQL).get(0).getValue(0);
-            } catch (NullPointerException e) {}
+            } catch (NullPointerException ignored) {}
 
             memslicesPerCoreCheck = memslicesPerCoreCheck && (memsliceCapacity >= usedMemslices.intValue());
         }
@@ -209,7 +209,7 @@ class Simulation
         Long usedCores = 0L;
         try {
             usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
-        } catch (NullPointerException e) {}
+        } catch (NullPointerException ignored) {}
         return usedCores.intValue();
     }
 
@@ -223,7 +223,7 @@ class Simulation
         Long usedMemslices = 0L;
         try {
             usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-        } catch (NullPointerException e) {}
+        } catch (NullPointerException ignored) {}
         return usedMemslices.intValue();
     }
 
@@ -259,7 +259,7 @@ public class SimulationRunner {
     private static final String USE_CAP_FUNCTION_OPTION = "useCapFunction";
     private static final boolean USE_CAP_FUNCTION_DEFAULT = true;
 
-    private static void setupDb(final DSLContext conn) {
+    public static void setupDb(final DSLContext conn) {
         final InputStream resourceAsStream = SimulationRunner.class.getResourceAsStream("/bespin_tables.sql");
         try {
             assert resourceAsStream != null;
@@ -338,7 +338,7 @@ public class SimulationRunner {
         int memsliceAllocs = numNodes * memslicesPerNode;
         memsliceAllocs = (int) Math.ceil((float) memsliceAllocs * 0.70);
 
-        HashMap<Integer, List<Integer>> appAllocMap = new HashMap();
+        HashMap<Integer, List<Integer>> appAllocMap = new HashMap<>();
 
         // Assign cores the applications
         for (int i = 0; i < coreAllocs; i++) {
@@ -371,14 +371,14 @@ public class SimulationRunner {
                 int coresUsed = 0;
                 try {
                     coresUsed = (int) conn.fetch(sql).get(0).getValue(0);
-                } catch (NullPointerException | IndexOutOfBoundsException e) {}
+                } catch (NullPointerException | IndexOutOfBoundsException ignored) {}
                 int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
                 sql = String.format("select memslices from allocated where node = %d", node);
                 int memslicesUsed = 0;
                 try {
                     memslicesUsed = (int) conn.fetch(sql).get(0).getValue(0);
-                } catch (NullPointerException | IndexOutOfBoundsException e) {}
+                } catch (NullPointerException | IndexOutOfBoundsException ignored) {}
                 int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
                 // If we can alloc anything, do so
@@ -420,17 +420,8 @@ public class SimulationRunner {
     }
 
     private static Model createModel(final DSLContext conn, boolean useCapFunc) {
-        List<String> constraints = new ArrayList();
-
-        // Only PENDING core requests are placed
-        // All DCM solvers need to have this constraint
-        final String placedConstraint = """
-                create constraint placed_constraint as
-                select * from pending
-                where status = 'PLACED'
-                check current_node = controllable__node
-        """;
-        constraints.add(placedConstraint);
+        List<String> constraints = new ArrayList<>();
+        constraints.add(Constraints.getPlacedConstraint().sql);
 
         if (useCapFunc) {
             // this will replace two above, and balance constraint below
@@ -466,7 +457,7 @@ public class SimulationRunner {
             // Capacity core constraint (e.g., can only use what is available on each node)
             final String capacityConstraint = """
                     create constraint capacity_constraint as
-                    select * from spare_view 
+                    select * from spare_view
                     check cores >= 0 and memslices >= 0
             """;
             constraints.add(capacityConstraint);
