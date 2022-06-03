@@ -58,6 +58,7 @@ class Simulation
         int totalCores = this.coreCapacity();
         int coreTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
         int coreAllocationsToMake = (int) Math.ceil((((double) coreTurnover) / 100) * totalCores);
+        coreAllocationsToMake = 25;
         int maxCoreAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalCores);
         int minCoreAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalCores);
         LOG.info("Core Turnover: {}, allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
@@ -97,6 +98,7 @@ class Simulation
         int totalMemslices = this.memsliceCapacity();
         int memsliceTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
         int memsliceAllocationsToMake = (int) Math.ceil((((double) memsliceTurnover) / 100) * totalMemslices);
+        memsliceAllocationsToMake = 25;
         int maxMemsliceAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalMemslices);
         int minMemsliceAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalMemslices);
         LOG.info("Memslice Turnover: {}, allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
@@ -298,7 +300,7 @@ public class SimulationRunner {
         final Applications appTable = Applications.APPLICATIONS;
         final Placed placedTable = Placed.PLACED;
 
-        Random rand = new Random();
+        Random rand = new Random(0);
         setupDb(conn);
 
         // Add nodes with specified cores
@@ -426,12 +428,6 @@ public class SimulationRunner {
                 " on unallocated.node = pending.controllable__node " +
                 "check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true";
 
-        // View to see the nodes each application is placed on
-        final String pending_app_nodes = "create constraint pending_app_nodes as " +
-                "select application, controllable__node, max(id) as max_id, min(id) as min_id " +
-                "from pending " +
-                "group by application, controllable__node";
-
         final String app_locality_constraint = "create constraint app_locality_constraint as " +
                 "select * " +
                 "from pending " +
@@ -456,13 +452,8 @@ public class SimulationRunner {
                 .setMaxTimeInSeconds(300);
         return Model.build(conn, b.build(), List.of(
                 placed_constraint,
-                //spare_view,
-                //capacity_constraint,
-                //node_balance_cores_constraint,
-                //node_balance_memslices_constraint,
                 core_cap,
                 mem_cap,
-                //pending_app_nodes,
                 app_locality_constraint
         ));
     }
