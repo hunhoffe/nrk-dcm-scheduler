@@ -25,44 +25,43 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.math.BigDecimal;
 
 class Simulation
 {
     final Model model;
     final DSLContext conn;
+    final Random rand;
+    final int allocsPerStep;
 
     private static final Logger LOG = LogManager.getLogger(Simulation.class);
 
     // below are percentages
     static final int MIN_CAPACITY = 65;
     static final int MAX_CAPACITY = 95;
-    static final int MIN_TURNOVER = 1;
-    static final int MAX_TURNOVER = 5;
 
     static final Pending pendingTable = Pending.PENDING;
     static final Placed placedTable = Placed.PLACED;
     static final Nodes nodeTable = Nodes.NODES;
 
-    private static final Random rand = new Random(0);
-
-    Simulation(Model model, DSLContext conn) {
+    Simulation(Model model, DSLContext conn, int allocsPerStep, int randomSeed) {
         this.model = model;
         this.conn = conn;
+        this.allocsPerStep = allocsPerStep;
+        this.rand = new Random(randomSeed);
     }
 
     public void createTurnover() {
-
-        // TODO: add application creation/removal to turnover
-
         int totalCores = this.coreCapacity();
-        int coreTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
-        int coreAllocationsToMake = (int) Math.ceil((((double) coreTurnover) / 100) * totalCores);
-        coreAllocationsToMake = 25;
+        int totalMemslices = this.memsliceCapacity();
+        double coreMemsliceRatio = (double) totalCores / (double) (totalCores + totalMemslices);
+        LOG.info("core:memslices = {}:{}, fraction = {}:{}", totalCores, totalMemslices,
+                coreMemsliceRatio, 1 - coreMemsliceRatio);
+
+        int coreAllocationsToMake = (int) Math.ceil((double) this.allocsPerStep * coreMemsliceRatio);
         int maxCoreAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalCores);
         int minCoreAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalCores);
-        LOG.info("Core Turnover: {}, allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
-                coreTurnover, coreAllocationsToMake, maxCoreAllocations, minCoreAllocations);
+        LOG.info("Core allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
+                coreAllocationsToMake, maxCoreAllocations, minCoreAllocations);
 
         int turnoverCounter = 0;
         while (turnoverCounter < coreAllocationsToMake) {
@@ -95,14 +94,11 @@ class Simulation
             }
         }
 
-        int totalMemslices = this.memsliceCapacity();
-        int memsliceTurnover = MIN_TURNOVER + rand.nextInt(MAX_TURNOVER - MIN_TURNOVER);
-        int memsliceAllocationsToMake = (int) Math.ceil((((double) memsliceTurnover) / 100) * totalMemslices);
-        memsliceAllocationsToMake = 25;
+        int memsliceAllocationsToMake = (int) Math.floor((double) this.allocsPerStep * (1 - coreMemsliceRatio));
         int maxMemsliceAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalMemslices);
         int minMemsliceAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalMemslices);
-        LOG.info("Memslice Turnover: {}, allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
-                memsliceTurnover, memsliceAllocationsToMake, maxMemsliceAllocations, minMemsliceAllocations);
+        LOG.info("Memslice allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
+                memsliceAllocationsToMake, maxMemsliceAllocations, minMemsliceAllocations);
 
         turnoverCounter = 0;
         while (turnoverCounter < memsliceAllocationsToMake) {
@@ -136,21 +132,16 @@ class Simulation
         }
 
         // Remove any empty rows that may have been produced
-        String deleteEmpty = "delete from placed " +
-                "where cores = 0 and memslices = 0";
-        conn.execute(deleteEmpty);
+        conn.execute("delete from placed where cores = 0 and memslices = 0");
     }
 
     public boolean runModelAndUpdateDB() {
         Result<? extends Record> results;
         try {
             results = model.solve("PENDING");
-        } catch (ModelException e) {
-            throw e;
-            //return false;
-        } catch (SolverException e) {
-            throw e;
-            //return false;
+        } catch (ModelException | SolverException e) {
+            LOG.error(e);
+            return false;
         }
 
         // TODO: should find a way to batch these
@@ -172,6 +163,7 @@ class Simulation
 
     public boolean checkForCapacityViolation() {
         // Check total capacity
+        // TODO: could make this more efficient by using unallocated view
         boolean totalCoreCheck = this.coreCapacity() >= this.usedCores();
         boolean totalMemsliceCheck = this.memsliceCapacity() >= this.usedCores();
 
@@ -251,9 +243,21 @@ class Simulation
 public class SimulationRunner {
     private static final Logger LOG = LogManager.getLogger(SimulationRunner.class);
     private static final String NUM_STEPS_OPTION = "steps";
+    private static final int NUM_STEPS_DEFAULT = 10;
     private static final String NUM_NODES_OPTION = "numNodes";
+    private static final int NUM_NODES_DEFAULT = 64;
     private static final String CORES_PER_NODE_OPTION = "coresPerNode";
+    private static final int CORES_PER_NODE_DEFAULT = 128;
     private static final String MEMSLICES_PER_NODE_OPTION = "memslicesPerNode";
+    private static final int MEMSLICES_PER_NODE_DEFAULT = 256;
+    private static final String NUM_APPS_OPTION = "numApps";
+    private static final int NUM_APPS_DEFAULT = 20;
+    private static final String ALLOCS_PER_STEP_OPTION = "allocsPerStep";
+    private static final int ALLOCS_PER_STEP_DEFAULT = 75;
+    private static final String RANDOM_SEED_OPTION = "randomSeed";
+    private static final int RANDOM_SEED_DEFAULT = 1;
+    private static final String USE_CAP_FUNCTION_OPTION = "useCapFunction";
+    private static final boolean USE_CAP_FUNCTION_DEFAULT = true;
 
     private static void setupDb(final DSLContext conn) {
         final InputStream resourceAsStream = SimulationRunner.class.getResourceAsStream("/bespin_tables.sql");
@@ -275,32 +279,39 @@ public class SimulationRunner {
         }
 
         // View to see totals of placed resources at each node
-        conn.execute("create view allocated as " +
-                "select node, cast(sum(cores) as int) as cores, cast(sum(memslices) as int) as memslices " +
-                "from placed " +
-                "group by node");
+        conn.execute("""
+                create view allocated as
+                select node, cast(sum(cores) as int) as cores, cast(sum(memslices) as int) as memslices
+                from placed
+                group by node
+                """);
 
-        conn.execute("create view unallocated as " +
-                "select nodes.id as node, cast(nodes.cores - sum(placed.cores) as int) as cores, " +
-                "    cast(nodes.memslices -sum(placed.memslices) as int) as memslices " +
-                "from placed " +
-                "join nodes " +
-                "  on nodes.id = placed.node " +
-                "group by nodes.id");
+        conn.execute("""
+                create view unallocated as
+                select nodes.id as node, cast(nodes.cores - sum(placed.cores) as int) as cores,
+                    cast(nodes.memslices -sum(placed.memslices) as int) as memslices
+                from placed
+                join nodes
+                    on nodes.id = placed.node
+                group by nodes.id
+                """);
 
         // View to see the nodes each application is placed on
-        conn.execute("create view app_nodes as " +
-                "select application, node " +
-                "from placed " +
-                "group by application, node");
+        conn.execute("""
+                create view app_nodes as
+                select application, node
+                from placed
+                group by application, node
+                """);
     }
 
-    private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode) {
+    private static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode,
+                               int numApps, int randomSeed) {
         final Nodes nodeTable = Nodes.NODES;
         final Applications appTable = Applications.APPLICATIONS;
         final Placed placedTable = Placed.PLACED;
 
-        Random rand = new Random(0);
+        Random rand = new Random(randomSeed);
         setupDb(conn);
 
         // Add nodes with specified cores
@@ -313,8 +324,7 @@ public class SimulationRunner {
         }
 
         // Randomly generate applications between 10 and 25
-        int numApplications = 10 + rand.nextInt(15);
-        for (int i = 1; i <= numApplications; i++) {
+        for (int i = 1; i <= numApps; i++) {
             // Add initial applications
             conn.insertInto(appTable)
                     .set(appTable.ID, i)
@@ -332,14 +342,14 @@ public class SimulationRunner {
 
         // Assign cores the applications
         for (int i = 0; i < coreAllocs; i++) {
-            int application = rand.nextInt(numApplications) + 1;
+            int application = rand.nextInt(numApps) + 1;
             List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
             appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
         }
 
         // Assign memslices to applications
         for (int i = 0; i < memsliceAllocs; i++) {
-            int application = rand.nextInt(numApplications) + 1;
+            int application = rand.nextInt(numApps) + 1;
             List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
             appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
         }
@@ -409,69 +419,123 @@ public class SimulationRunner {
         printStats(conn);
     }
 
-    private static Model createModel(final DSLContext conn) {
+    private static Model createModel(final DSLContext conn, boolean useCapFunc) {
+        List<String> constraints = new ArrayList();
+
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
-        final String placed_constraint = "create constraint placed_constraint as " +
-                " select * from pending where status = 'PLACED' check current_node = controllable__node";
+        final String placedConstraint = """
+                create constraint placed_constraint as
+                select * from pending
+                where status = 'PLACED'
+                check current_node = controllable__node
+        """;
+        constraints.add(placedConstraint);
 
-        // this will replace two above, and balance constraint below
-        final String core_cap = "create constraint core_cap as " +
-                "select * from pending " +
-                "join unallocated " +
-                " on unallocated.node = pending.controllable__node " +
-                "check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true ";
+        if (useCapFunc) {
+            // this will replace two above, and balance constraint below
+            final String coreCapacityConstraint = """
+                    create constraint core_cap as
+                    select * from pending
+                    join unallocated
+                        on unallocated.node = pending.controllable__node
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true
+            """;
+            constraints.add(coreCapacityConstraint);
+            final String memsliceCapacityConstraint = """
+                    create constraint mem_cap as
+                    select * from pending
+                    join unallocated
+                        on unallocated.node = pending.controllable__node
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true
+            """;
+            constraints.add(memsliceCapacityConstraint);
+        } else {
+            // View of spare resources per node for both memslices and cores
+            final String spareView = """
+                    create constraint spare_view as
+                    select unallocated.node, unallocated.cores - sum(pending.cores) as cores,
+                        unallocated.memslices - sum(pending.memslices) as memslices
+                    from pending
+                    join unallocated
+                        on unallocated.node = pending.controllable__node
+                    group by unallocated.node, unallocated.cores, unallocated.memslices
+            """;
+            constraints.add(spareView);
 
-        final String mem_cap = "create constraint mem_cap as " +
-                "select * from pending " +
-                "join unallocated " +
-                " on unallocated.node = pending.controllable__node " +
-                "check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true";
+            // Capacity core constraint (e.g., can only use what is available on each node)
+            final String capacityConstraint = """
+                    create constraint capacity_constraint as
+                    select * from spare_view 
+                    check cores >= 0 and memslices >= 0
+            """;
+            constraints.add(capacityConstraint);
 
-        final String app_locality_constraint = "create constraint app_locality_constraint as " +
+            // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
+            // Create load balancing constraint across nodes for cores and memslices
+            final String balanceCoresConstraint = """
+                    create constraint balance_cores_constraint as
+                    select cores from spare_view
+                    maximize min(cores)
+            """;
+            constraints.add(balanceCoresConstraint);
+            // Create load balancing constraint across nodes for cores and memslices
+            final String balanceMemslicesConstraint = """
+                    create constraint balance_memslices_constraint as
+                    select memslices from spare_view
+                    maximize min(memslices)
+            """;
+            constraints.add(balanceMemslicesConstraint);
+        }
+
+        final String appLocalityConstraint = """
+                create constraint app_locality_constraint as
+                select * from pending
+                maximize
+                    (pending.controllable__node in
+                        (select b.controllable__node
+                            from pending as b
+                            where b.application = pending.application
+                            and not b.id = pending.id
+                        ))
+                    or (pending.controllable__node in
+                        (select node
+                            from app_nodes
+                            where app_nodes.application = pending.application
+                        ))
+        """;
+        constraints.add(appLocalityConstraint);
+
+        /*
+        // Needed due tell solver to ignore permutations of putting identical pending allocations in different placements
+        final String symmetry_breaking_constraint = "create constraint constraint_symmetry_breaking as " +
                 "select * " +
                 "from pending " +
-                "maximize " +
-                // Locality to other to pending allocations
-                "      (pending.controllable__node in " +
-                "         (select b.controllable__node " +
-                "          from pending as b " +
-                "          where b.application = pending.application " +
-                "           and not b.id = pending.id" +
-                "       ))" +
-
-                // Locality to placed allocations
-                "   or (pending.controllable__node in " +
-                "         (select node " +
-                "          from app_nodes " +
-                "          where app_nodes.application = pending.application" +
-                "         )) ";  // running pods
+                "group by application, cores, memslices " +
+                "check increasing(controllable__node) = true";
+        */
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
                 .setMaxTimeInSeconds(300);
-        return Model.build(conn, b.build(), List.of(
-                placed_constraint,
-                core_cap,
-                mem_cap,
-                app_locality_constraint
-        ));
+        return Model.build(conn, b.build(), constraints);
     }
 
     private static void printStats(final DSLContext conn) {
 
         // print resource usage statistics by node
         System.out.println("Unallocated resources per node:");
-        final String unallocated_resources = "select * from unallocated";
-        System.out.println(conn.fetch(unallocated_resources));
+        System.out.println(conn.fetch("select * from unallocated"));
 
         // print application statistics
         System.out.println("Application resources per node: ");
-        final String nodes_per_app_view = "select application, sum(cores) as cores, sum(memslices) as memslices, " +
-                "    count(distinct node) as num_nodes " +
-                "from placed " +
-                "group by application";
-        System.out.println(conn.fetch(nodes_per_app_view));
+        final String nodesPerAppView = """
+                select application, sum(cores) as cores, sum(memslices) as memslices,
+                    count(distinct node) as num_nodes
+                from placed
+                group by application
+        """;
+        System.out.println(conn.fetch(nodesPerAppView));
     }
 
     public static void main(String[] args) throws ClassNotFoundException {
@@ -479,45 +543,86 @@ public class SimulationRunner {
         int i = 0;
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
-        int numSteps = 10;
-        int numNodes = 25;
-        int coresPerNode = 15;
-        int memslicesPerNode = 15;
+        int numSteps = NUM_STEPS_DEFAULT;
+        int numNodes = NUM_NODES_DEFAULT;
+        int coresPerNode = CORES_PER_NODE_DEFAULT;
+        int memslicesPerNode = MEMSLICES_PER_NODE_DEFAULT;
+        int numApps = NUM_APPS_DEFAULT;
+        int allocsPerStep = ALLOCS_PER_STEP_DEFAULT;
+        int randomSeed = RANDOM_SEED_DEFAULT;
+        boolean useCapFunction = USE_CAP_FUNCTION_DEFAULT;
 
         // create Options object
         Options options = new Options();
 
-        // TODO: handle defaults better
-        Option numStepsOption = Option.builder(NUM_STEPS_OPTION)
+        Option helpOption = Option.builder("h")
+                .longOpt("help").argName("h")
+                .hasArg(false)
+                .desc("print help message")
+                .build();
+        Option numStepsOption = Option.builder("s")
+                .longOpt(NUM_STEPS_OPTION).argName(NUM_STEPS_OPTION)
                 .hasArg(true)
-                .desc("maximum number of steps to run the simulations.\nDefault: 10")
+                .desc(String.format("maximum number of steps to run the simulations.\nDefault: %d", NUM_STEPS_DEFAULT))
                 .type(Integer.class)
                 .build();
-        Option numNodesOption = Option.builder(NUM_NODES_OPTION)
+        Option numNodesOption = Option.builder("n")
+                .longOpt(NUM_NODES_OPTION).argName(NUM_NODES_OPTION)
                 .hasArg()
-                .desc("number of nodes.\nDefault: 64")
+                .desc(String.format("number of nodes.\nDefault: %d", NUM_NODES_DEFAULT))
                 .type(Integer.class)
                 .build();
-        Option coresPerNodeOption = Option.builder(CORES_PER_NODE_OPTION)
+        Option coresPerNodeOption = Option.builder("c")
+                .longOpt(CORES_PER_NODE_OPTION).argName(CORES_PER_NODE_OPTION)
                 .hasArg()
-                .desc("cores per node.\nDefault: 128")
+                .desc(String.format("cores per node.\nDefault: %d", CORES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
-        Option memslicesPerNodeOption = Option.builder(MEMSLICES_PER_NODE_OPTION)
+        Option memslicesPerNodeOption = Option.builder("m")
+                .longOpt(MEMSLICES_PER_NODE_OPTION).argName(MEMSLICES_PER_NODE_OPTION)
                 .hasArg()
-                .desc("number of 2 MB memory slices per node.\nDefault: 128")
+                .desc(String.format("number of 2 MB memory slices per node.\nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
                 .type(Integer.class)
+                .build();
+        Option numAppsOption = Option.builder("p")
+                .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
+                .hasArg()
+                .desc(String.format("number of applications running on the cluster.\nDefault: %d", NUM_APPS_DEFAULT))
+                .type(Integer.class)
+                .build();
+        Option allocsPerStepOption = Option.builder("a")
+                .longOpt(ALLOCS_PER_STEP_OPTION).argName(ALLOCS_PER_STEP_OPTION)
+                .hasArg()
+                .desc(String.format("number of new allocations per step.\nDefault: %d", ALLOCS_PER_STEP_DEFAULT))
+                .type(Integer.class)
+                .build();
+        Option randomSeedOption = Option.builder("r")
+                .longOpt(RANDOM_SEED_OPTION).argName(RANDOM_SEED_OPTION)
+                .hasArg()
+                .desc(String.format("seed from random.\nDefault: %d", RANDOM_SEED_DEFAULT))
+                .type(Integer.class)
+                .build();
+        Option useCapFunctionOption = Option.builder("f")
+                .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
+                .hasArg(false)
+                .desc(String.format("use capability function vs hand-written constraints.\nDefault: %b",
+                        USE_CAP_FUNCTION_DEFAULT))
+                .type(Boolean.class)
                 .build();
 
-        options.addOption("h", false, "print help message");
+        options.addOption(helpOption);
         options.addOption(numStepsOption);
         options.addOption(numNodesOption);
         options.addOption(coresPerNodeOption);
         options.addOption(memslicesPerNodeOption);
+        options.addOption(numAppsOption);
+        options.addOption(allocsPerStepOption);
+        options.addOption(randomSeedOption);
+        options.addOption(useCapFunctionOption);
 
         CommandLineParser parser = new DefaultParser();
         try {
-            CommandLine cmd = parser.parse( options, args);
+            CommandLine cmd = parser.parse(options, args);
             if(cmd.hasOption("h")) {
                 // automatically generate the help statement
                 HelpFormatter formatter = new HelpFormatter();
@@ -538,6 +643,18 @@ public class SimulationRunner {
             if (cmd.hasOption(MEMSLICES_PER_NODE_OPTION)) {
                 memslicesPerNode = Integer.parseInt(cmd.getOptionValue(MEMSLICES_PER_NODE_OPTION));
             }
+            if (cmd.hasOption(NUM_APPS_OPTION)) {
+                numApps = Integer.parseInt(cmd.getOptionValue(NUM_APPS_OPTION));
+            }
+            if (cmd.hasOption(ALLOCS_PER_STEP_OPTION)) {
+                allocsPerStep = Integer.parseInt(cmd.getOptionValue(ALLOCS_PER_STEP_OPTION));
+            }
+            if (cmd.hasOption(RANDOM_SEED_OPTION)) {
+                randomSeed = Integer.parseInt(cmd.getOptionValue(RANDOM_SEED_OPTION));
+            }
+            if (cmd.hasOption(USE_CAP_FUNCTION_OPTION)) {
+                useCapFunction = Boolean.parseBoolean(cmd.getOptionValue(USE_CAP_FUNCTION_OPTION));
+            }
         } catch (ParseException e) {
             LOG.error("Failed to parse command line");
             return;
@@ -546,12 +663,13 @@ public class SimulationRunner {
         // Create an in-memory database and get a JOOQ connection to it
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        initDB(conn, numNodes, coresPerNode, memslicesPerNode);
+        initDB(conn, numNodes, coresPerNode, memslicesPerNode, numApps, randomSeed);
 
-        LOG.debug("Creating a simulation with parameters:\n nodes : {}, coresPerNode : {}, memSlicesPerNode : {} ",
-                numNodes, coresPerNode, memslicesPerNode);
-        Model model = createModel(conn);
-        Simulation sim = new Simulation(model, conn);
+        LOG.info("Creating a simulation with parameters:\n nodes={}, coresPerNode={}, " +
+                        "memSlicesPerNode={} numApps={}, allocsPerStep={}, randomSeed={}, useCapFunction={}",
+                numNodes, coresPerNode, memslicesPerNode, numApps, allocsPerStep, randomSeed, useCapFunction);
+        Model model = createModel(conn, useCapFunction);
+        Simulation sim = new Simulation(model, conn, allocsPerStep, randomSeed);
 
         for (; i < numSteps; i++) {
             LOG.info("Simulation step: {}", i);
