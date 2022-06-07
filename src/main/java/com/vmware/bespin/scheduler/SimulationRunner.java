@@ -286,7 +286,7 @@ public class SimulationRunner {
                 group by node
                 """);
 
-        // TODO: change order so start with nodes instead and check??
+        // View to see total unallocated (unused) resources at each node
         conn.execute("""
                 create view unallocated as
                 select n.id as node, cast(n.cores - coalesce(sum(p.cores), 0) as int) as cores,
@@ -433,37 +433,10 @@ public class SimulationRunner {
             constraints.add(Constraints.getCapacityConstraint().sql);
 
             // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
-            // Create load balancing constraint across nodes for cores and memslices
             constraints.add(Constraints.getLoadBalanceCoreConstraint().sql);
             constraints.add(Constraints.getLoadBalanceMemsliceConstraint().sql);
         }
-
-        final String appLocalityConstraint = """
-                create constraint app_locality_constraint as
-                select * from pending
-                maximize
-                    (pending.controllable__node in
-                        (select b.controllable__node
-                            from pending as b
-                            where b.application = pending.application
-                            and not b.id = pending.id
-                        ))
-                    or (pending.controllable__node in
-                        (select node
-                            from app_nodes
-                            where app_nodes.application = pending.application
-                        ))
-        """;
-        constraints.add(appLocalityConstraint);
-
-        /*
-        // Needed due tell solver to ignore permutations of putting identical pending allocations in different placements
-        final String symmetry_breaking_constraint = "create constraint constraint_symmetry_breaking as " +
-                "select * " +
-                "from pending " +
-                "group by application, cores, memslices " +
-                "check increasing(controllable__node) = true";
-        */
+        constraints.add(Constraints.getAppLocalityConstraint().sql);
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)

@@ -91,6 +91,40 @@ public class Constraints {
         return loadBalanceMemsliceConstraint;
     }
 
+    public static Constraint getAppLocalityConstraint() {
+        Constraint appLocalityConstraint = new Constraint(
+                "appLocalityConstraint",
+                """
+                create constraint app_locality_constraint as
+                select * from pending
+                maximize
+                    (pending.controllable__node in
+                        (select b.controllable__node
+                            from pending as b
+                            where b.application = pending.application
+                            and not b.id = pending.id
+                        ))
+                    or (pending.controllable__node in
+                        (select node
+                            from app_nodes
+                            where app_nodes.application = pending.application
+                        ))
+                """);
+        return appLocalityConstraint;
+    }
+
+    public static Constraint getSymmetryBreakingConstraint() {
+        Constraint symmetryBreakingConstraint = new Constraint(
+                "symmetryBreakingConstraint",
+                """
+                   create constraint constraint_symmetry_breaking as
+                   select *
+                   from pending
+                   group by application, cores, memslices
+                   check increasing(controllable__node) = true
+                   """);
+        return symmetryBreakingConstraint;
+    }
 }
 
 class Constraint {
