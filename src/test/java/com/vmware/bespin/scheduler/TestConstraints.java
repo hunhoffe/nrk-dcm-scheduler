@@ -130,24 +130,27 @@ public class TestConstraints {
         // one application
         conn.execute("insert into applications values(1)");
         conn.execute("insert into applications values(2)");
-        // create 2 pending allocations - will check to see if on the same node
+        // place a memslice from application 1 on node 2
+        conn.execute("insert into placed values(1, 2, 0, 1)");
+        // place a memslice from application 2 on node 1 for confusion
+        conn.execute("insert into placed values(2, 1, 0, 1)");
+        // create 2 pending allocations - will check to see if they are placed on node 2
         conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
         conn.execute("insert into pending values(2, 1, 0, 1, 'PENDING', null, null)");
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
+        System.out.println(results);
 
         // Should be two placements by the model
         assertEquals(2, results.size());
         results.forEach(r -> {
             // double check values in results are as expected
             assertEquals(1, (int) r.get("APPLICATION"));
-            assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE")
-                    || 3 == (int) r.get("CONTROLLABLE__NODE"));
+            assertEquals(2, (int) r.get("CONTROLLABLE__NODE"));
             assertEquals("PENDING", (String) r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
         });
-        assertEquals(results.get(0).get("CONTROLLABLE__NODE"), results.get(1).get("CONTROLLABLE__NODE"));
     }
 
     private void capacityTestWithPlaced(List<String> constraints) throws ClassNotFoundException {

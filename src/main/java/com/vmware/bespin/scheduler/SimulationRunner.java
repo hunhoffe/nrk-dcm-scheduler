@@ -588,7 +588,7 @@ public class SimulationRunner {
         DSLContext conn = DSL.using("jdbc:h2:mem:");
         initDB(conn, numNodes, coresPerNode, memslicesPerNode, numApps, randomSeed);
 
-        LOG.info("Creating a simulation with parameters:\n nodes={}, coresPerNode={}, " +
+        LOG.info("Creating a simulation with parameters: nodes={}, coresPerNode={}, " +
                         "memSlicesPerNode={} numApps={}, allocsPerStep={}, randomSeed={}, useCapFunction={}",
                 numNodes, coresPerNode, memslicesPerNode, numApps, allocsPerStep, randomSeed, useCapFunction);
         Model model = createModel(conn, useCapFunction);
