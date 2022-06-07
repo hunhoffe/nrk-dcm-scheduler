@@ -106,7 +106,7 @@ public class Constraints {
                             where b.application = pending.application
                             and not b.id = pending.id
                         ))
-                    or (pending.controllable__node in
+                    + (pending.controllable__node in
                         (select node
                             from app_nodes
                             where app_nodes.application = pending.application

@@ -436,9 +436,11 @@ public class SimulationRunner {
             constraints.add(Constraints.getLoadBalanceCoreConstraint().sql);
             constraints.add(Constraints.getLoadBalanceMemsliceConstraint().sql);
         }
-        //constraints.add(Constraints.getAppLocalityConstraint().sql);
+        //constraints.add(Constraints.getAppLocalitySingleConstraint().sql);
         constraints.add(Constraints.getAppLocalityPlacedConstraint().sql);
         constraints.add(Constraints.getAppLocalityPendingConstraint().sql);
+
+        //constraints.add(Constraints.getSymmetryBreakingConstraint().sql);
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
@@ -529,7 +531,7 @@ public class SimulationRunner {
                 .build();
         Option useCapFunctionOption = Option.builder("f")
                 .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
-                .hasArg(false)
+                .hasArg()
                 .desc(String.format("use capability function vs hand-written constraints.\nDefault: %b",
                         USE_CAP_FUNCTION_DEFAULT))
                 .type(Boolean.class)

@@ -153,6 +153,54 @@ public class TestConstraints {
         });
     }
 
+
+    @Test
+    public void testAppLocalitySingle() throws ClassNotFoundException {
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        SimulationRunner.setupDb(conn);
+
+        // Create and build model
+        OrToolsSolver.Builder b = new OrToolsSolver.Builder()
+                .setPrintDiagnostics(true)
+                .setMaxTimeInSeconds(300);
+        Model model = Model.build(conn, b.build(), List.of(
+                Constraints.getPlacedConstraint().sql,
+                Constraints.getCapacityFunctionCoreConstraint().sql,
+                Constraints.getCapacityFunctionMemsliceConstraint().sql,
+                Constraints.getAppLocalitySingleConstraint().sql
+        ));
+
+        // three nodes with two cores, two memslices each
+        conn.execute("insert into nodes values(1, 4, 4)");
+        conn.execute("insert into nodes values(2, 4, 4)");
+        conn.execute("insert into nodes values(3, 4, 4)");
+        // one application
+        conn.execute("insert into applications values(1)");
+        conn.execute("insert into applications values(2)");
+        // place a memslice from application 1 on node 2
+        conn.execute("insert into placed values(1, 2, 0, 1)");
+        // place a memslice from application 2 on node 1 for confusion
+        conn.execute("insert into placed values(2, 1, 0, 1)");
+        // create 2 pending allocations - will check to see if they are placed on node 2
+        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
+        conn.execute("insert into pending values(2, 1, 0, 1, 'PENDING', null, null)");
+
+        // run model and check result
+        Result<? extends Record> results = model.solve("PENDING");
+
+        // Should be two placements by the model
+        assertEquals(2, results.size());
+        results.forEach(r -> {
+            // double check values in results are as expected
+            assertEquals(1, (int) r.get("APPLICATION"));
+            assertEquals(2, (int) r.get("CONTROLLABLE__NODE"));
+            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
+        });
+    }
+
     private void capacityTestWithPlaced(List<String> constraints) throws ClassNotFoundException {
         // Create database
         Class.forName("org.h2.Driver");
