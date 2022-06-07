@@ -286,14 +286,15 @@ public class SimulationRunner {
                 group by node
                 """);
 
+        // TODO: change order so start with nodes instead and check??
         conn.execute("""
                 create view unallocated as
-                select nodes.id as node, cast(nodes.cores - sum(placed.cores) as int) as cores,
-                    cast(nodes.memslices -sum(placed.memslices) as int) as memslices
-                from placed
-                join nodes
-                    on nodes.id = placed.node
-                group by nodes.id
+                select n.id as node, cast(n.cores - coalesce(sum(p.cores), 0) as int) as cores,
+                    cast(n.memslices - coalesce(sum(p.memslices), 0) as int) as memslices
+                from nodes n
+                left join placed p
+                    on n.id = p.node
+                group by n.id
                 """);
 
         // View to see the nodes each application is placed on
@@ -442,25 +443,8 @@ public class SimulationRunner {
             """;
             constraints.add(memsliceCapacityConstraint);
         } else {
-            // View of spare resources per node for both memslices and cores
-            final String spareView = """
-                    create constraint spare_view as
-                    select unallocated.node, unallocated.cores - sum(pending.cores) as cores,
-                        unallocated.memslices - sum(pending.memslices) as memslices
-                    from pending
-                    join unallocated
-                        on unallocated.node = pending.controllable__node
-                    group by unallocated.node, unallocated.cores, unallocated.memslices
-            """;
-            constraints.add(spareView);
-
-            // Capacity core constraint (e.g., can only use what is available on each node)
-            final String capacityConstraint = """
-                    create constraint capacity_constraint as
-                    select * from spare_view
-                    check cores >= 0 and memslices >= 0
-            """;
-            constraints.add(capacityConstraint);
+            constraints.add(Constraints.getSpareView().sql);
+            constraints.add(Constraints.getCapacityConstraint().sql);
 
             // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
             // Create load balancing constraint across nodes for cores and memslices
