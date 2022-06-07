@@ -42,6 +42,55 @@ public class Constraints {
                 """);
         return capacityConstraint;
     }
+
+    public static Constraint getCapacityFunctionCoreConstraint() {
+        Constraint capacityFunctionCoreConstraint = new Constraint(
+                "coreCapacityConstraint",
+                """
+                    create constraint core_cap as
+                    select * from pending
+                    join unallocated
+                        on unallocated.node = pending.controllable__node
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true
+                """);
+        return capacityFunctionCoreConstraint;
+    }
+
+    public static Constraint getCapacityFunctionMemsliceConstraint() {
+        Constraint capacityFunctionMemsliceConstraint = new Constraint(
+                "coreCapacityConstraint",
+                """
+                    create constraint mem_cap as
+                    select * from pending
+                    join unallocated
+                        on unallocated.node = pending.controllable__node
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true
+                """);
+        return capacityFunctionMemsliceConstraint;
+    }
+
+    public static Constraint getLoadBalanceCoreConstraint() {
+        Constraint loadBalanceCoreConstraint = new Constraint(
+                "loadBalanceCoreConstraint",
+                """
+                    create constraint balance_cores_constraint as
+                    select cores from spare_view
+                    maximize min(cores)
+                """);
+        return loadBalanceCoreConstraint;
+    }
+
+    public static Constraint getLoadBalanceMemsliceConstraint() {
+        Constraint loadBalanceMemsliceConstraint = new Constraint(
+                "loadBalanceMemsliceConstraint",
+                """
+                    create constraint balance_memslices_constraint as
+                    select memslices from spare_view
+                    maximize min(memslices)
+                """);
+        return loadBalanceMemsliceConstraint;
+    }
+
 }
 
 class Constraint {

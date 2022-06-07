@@ -426,41 +426,16 @@ public class SimulationRunner {
 
         if (useCapFunc) {
             // this will replace two above, and balance constraint below
-            final String coreCapacityConstraint = """
-                    create constraint core_cap as
-                    select * from pending
-                    join unallocated
-                        on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true
-            """;
-            constraints.add(coreCapacityConstraint);
-            final String memsliceCapacityConstraint = """
-                    create constraint mem_cap as
-                    select * from pending
-                    join unallocated
-                        on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true
-            """;
-            constraints.add(memsliceCapacityConstraint);
+            constraints.add(Constraints.getCapacityFunctionCoreConstraint().sql);
+            constraints.add(Constraints.getCapacityFunctionMemsliceConstraint().sql);
         } else {
             constraints.add(Constraints.getSpareView().sql);
             constraints.add(Constraints.getCapacityConstraint().sql);
 
             // TODO: should scale because we're maximizing the sum cores_per_node ratio compared to memslices_per_node
             // Create load balancing constraint across nodes for cores and memslices
-            final String balanceCoresConstraint = """
-                    create constraint balance_cores_constraint as
-                    select cores from spare_view
-                    maximize min(cores)
-            """;
-            constraints.add(balanceCoresConstraint);
-            // Create load balancing constraint across nodes for cores and memslices
-            final String balanceMemslicesConstraint = """
-                    create constraint balance_memslices_constraint as
-                    select memslices from spare_view
-                    maximize min(memslices)
-            """;
-            constraints.add(balanceMemslicesConstraint);
+            constraints.add(Constraints.getLoadBalanceCoreConstraint().sql);
+            constraints.add(Constraints.getLoadBalanceMemsliceConstraint().sql);
         }
 
         final String appLocalityConstraint = """
