@@ -1,4 +1,6 @@
 import argparse
+from datetime import datetime
+import os
 
 # Parse configuration
 def parse_config(file_name):
@@ -53,20 +55,35 @@ def parse_step_data(file_name, steps):
 if __name__ == "__main__":
     # Handle arguments
     parser = argparse.ArgumentParser(description='Parse results file')
-    parser.add_argument('file_name', type=str,
-                        help='Name of the file to parse')
+    parser.add_argument('results_dir', type=str,
+                        help='Name of the directory to find results in')
     args = parser.parse_args()
-    (nodes, cores_per_node, memslices_per_node, num_applications, cap_func, allocations, steps) = parse_config(args.file_name)
-    var_counts, solver_times = parse_step_data(args.file_name, steps)
+    os.chdir(args.results_dir)
 
-    var_avg = sum(var_counts) / len(var_counts)
-    var_avg = round(var_avg, 2)
-    var_counts = [str(t) for t in var_counts]
-    var_str = ", ".join(var_counts)
-    print(f"{nodes}, {cores_per_node}, {memslices_per_node}, {num_applications}, {cap_func}, {allocations}, {steps},  {var_str}, {var_avg}")
+    # Create time and var csv files
+    now = str(datetime.now().timestamp())
+    time_file = open(f"time_{now}.csv", 'w')
+    var_file = open(f"var_{now}.csv", 'w')
+    time_file.write("nodes, cores, memslices, apps, cap_func, allocs, steps, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, avg\n")
+    var_file.write("nodes, cores, memslices, apps, cap_func, allocs, steps, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, avg\n")
 
-    solver_avg = sum(solver_times) / len(solver_times)
-    solver_avg = round(solver_avg, 2)
-    solver_times = [str(t) for t in solver_times]
-    solver_str = ", ".join(solver_times)
-    print(f"{nodes}, {cores_per_node}, {memslices_per_node}, {num_applications}, {cap_func}, {allocations}, {steps}, {solver_str}, {solver_avg}")
+    for file_name in os.listdir('.'):
+        print(file_name)
+        if not file_name.startswith("results_"):
+            continue
+        (nodes, cores_per_node, memslices_per_node, num_applications, cap_func, allocations, steps) = parse_config(file_name)
+        var_counts, solver_times = parse_step_data(file_name, steps)
+
+        #Output variable information
+        var_avg = sum(var_counts) / len(var_counts)
+        var_avg = round(var_avg, 2)
+        var_counts = [str(t) for t in var_counts]
+        var_str = ", ".join(var_counts)
+        var_file.write(f"{nodes}, {cores_per_node}, {memslices_per_node}, {num_applications}, {cap_func}, {allocations}, {steps},  {var_str}, {var_avg}\n")
+
+        # Output solver time information
+        solver_avg = sum(solver_times) / len(solver_times)
+        solver_avg = round(solver_avg, 2)
+        solver_times = [str(t) for t in solver_times]
+        solver_str = ", ".join(solver_times)
+        time_file.write(f"{nodes}, {cores_per_node}, {memslices_per_node}, {num_applications}, {cap_func}, {allocations}, {steps}, {solver_str}, {solver_avg}\n")
