@@ -163,8 +163,8 @@ public class TestConstraints {
         Model model = Model.build(conn, b.build(), constraints);
 
         // two nodes with 3 cores, 3 memslices
-        conn.execute("insert into nodes values(1, 2, 2)");
-        conn.execute("insert into nodes values(2, 2, 2)");
+        conn.execute("insert into nodes values(1, 1, 1)");
+        conn.execute("insert into nodes values(2, 1, 1)");
 
         // one application
         conn.execute("insert into applications values(1)");
