@@ -38,6 +38,11 @@ java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml target/schedul
 ```
 Run with a ```-h``` to see usage message.
 
+### Test
+```bash
+mvn test
+```
+
 ### Generating Java Classes for SQL Tables
 
 This normally happens during the build command above, but if you want to run it
