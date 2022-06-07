@@ -10,7 +10,7 @@ def parse_config(file_name):
     cores_per_node = int(config[1])
     memslices_per_node = int(config[2])
     num_applications = int(config[3])
-    cap_func = bool(config[4])
+    cap_func = (config[4] == "true")
     allocations = int(config[5])
     steps = int(config[6])
     print(f"Results config: nodes={nodes}, cores_per_node={cores_per_node}, memslices_per_node={memslices_per_node}, "
@@ -26,7 +26,7 @@ def parse_config(file_name):
     assert(cores_per_node == int(actual_config[2].split("=")[-1][:-1]))
     assert(memslices_per_node == int(actual_config[3].split("=")[-1]))
     assert(num_applications == int(actual_config[4].split("=")[-1][:-1]))
-    assert(cap_func == bool(actual_config[7].split("=")[-1]))
+    assert(cap_func == (actual_config[7].split("=")[-1] == "true"))
     assert(allocations == int(actual_config[5].split("=")[-1][:-1]))
     return (nodes, cores_per_node, memslices_per_node, num_applications, cap_func, allocations, steps)
 
