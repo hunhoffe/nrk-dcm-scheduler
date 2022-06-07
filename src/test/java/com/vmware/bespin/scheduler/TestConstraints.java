@@ -120,7 +120,8 @@ public class TestConstraints {
                 Constraints.getPlacedConstraint().sql,
                 Constraints.getCapacityFunctionCoreConstraint().sql,
                 Constraints.getCapacityFunctionMemsliceConstraint().sql,
-                Constraints.getAppLocalityConstraint().sql
+                Constraints.getAppLocalityPlacedConstraint().sql,
+                Constraints.getAppLocalityPendingConstraint().sql
         ));
 
         // three nodes with two cores, two memslices each
@@ -140,7 +141,6 @@ public class TestConstraints {
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
-        System.out.println(results);
 
         // Should be two placements by the model
         assertEquals(2, results.size());

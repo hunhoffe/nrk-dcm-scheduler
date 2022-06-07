@@ -91,7 +91,9 @@ public class Constraints {
         return loadBalanceMemsliceConstraint;
     }
 
-    public static Constraint getAppLocalityConstraint() {
+    public static Constraint getAppLocalitySingleConstraint() {
+        // this is buggy because does not prioritize between placed/pending locality
+        // coould maybe fix with a + instead of an or?
         Constraint appLocalityConstraint = new Constraint(
                 "appLocalityConstraint",
                 """
@@ -105,6 +107,40 @@ public class Constraints {
                             and not b.id = pending.id
                         ))
                     or (pending.controllable__node in
+                        (select node
+                            from app_nodes
+                            where app_nodes.application = pending.application
+                        ))
+                """);
+        return appLocalityConstraint;
+    }
+
+    public static Constraint getAppLocalityPendingConstraint() {
+        // TODO: do we want to maximize the sum? e.g., concentrate per node
+        Constraint appLocalityConstraint = new Constraint(
+                "appLocalityPendingConstraint",
+                """
+                create constraint app_locality_pending_constraint as
+                select * from pending
+                maximize
+                    (pending.controllable__node in
+                        (select b.controllable__node
+                            from pending as b
+                            where b.application = pending.application
+                            and not b.id = pending.id
+                        ))
+                """);
+        return appLocalityConstraint;
+    }
+
+    public static Constraint getAppLocalityPlacedConstraint() {
+        // TODO: do we want to maximize the sum? e.g., concentrate per node
+        Constraint appLocalityConstraint = new Constraint(
+                "appLocalityPlacedConstraint",
+                """
+                create constraint app_locality_placed_constraint as
+                select * from pending
+                maximize (pending.controllable__node in
                         (select node
                             from app_nodes
                             where app_nodes.application = pending.application

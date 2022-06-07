@@ -436,7 +436,9 @@ public class SimulationRunner {
             constraints.add(Constraints.getLoadBalanceCoreConstraint().sql);
             constraints.add(Constraints.getLoadBalanceMemsliceConstraint().sql);
         }
-        constraints.add(Constraints.getAppLocalityConstraint().sql);
+        //constraints.add(Constraints.getAppLocalityConstraint().sql);
+        constraints.add(Constraints.getAppLocalityPlacedConstraint().sql);
+        constraints.add(Constraints.getAppLocalityPendingConstraint().sql);
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
