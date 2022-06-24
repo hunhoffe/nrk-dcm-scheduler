@@ -6,7 +6,6 @@ import com.vmware.dcm.SolverException;
 
 import com.vmware.bespin.scheduler.generated.tables.Pending;
 import com.vmware.bespin.scheduler.generated.tables.Placed;
-import com.vmware.bespin.scheduler.generated.tables.Nodes;
 
 import org.jooq.*;
 import org.jooq.Record;
@@ -15,6 +14,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.commons.cli.*;
 
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 
 class Scheduler
 {
@@ -22,16 +24,15 @@ class Scheduler
     final DSLContext conn;
 
     final int maxReqsPerSolve;
-    final int maxTimePerSolve;
-    final int pollInterval;
+    final long maxTimePerSolve;
+    final long pollInterval;
 
     private static final Logger LOG = LogManager.getLogger(Scheduler.class);
 
     static final Pending pendingTable = Pending.PENDING;
     static final Placed placedTable = Placed.PLACED;
-    static final Nodes nodeTable = Nodes.NODES;
 
-    Scheduler(Model model, DSLContext conn, int maxReqsPerSolve, int maxTimePerSolve, int pollInterval) {
+    Scheduler(Model model, DSLContext conn, int maxReqsPerSolve, long maxTimePerSolve, long pollInterval) {
         this.model = model;
         this.conn = conn;
         this.maxReqsPerSolve = maxReqsPerSolve;
@@ -62,11 +63,86 @@ class Scheduler
                             .execute();
                 }
         );
+
+        // TODO: send updates to remote server
+
         return true;
     }
 
-    public void run() {
-        // TODO: implement this
+    private int getNumPendingRequests() {
+        final String numRequests = "select count(1) from pending";
+        return ((Long) this.conn.fetch(numRequests).get(0).getValue(0)).intValue();
+    }
+
+    public void run() throws InterruptedException {
+        Runnable rpcRunner =
+                () -> {
+                    byte[] buf = new byte[256];
+                    try {
+                        LOG.info("rpcListener thread started");
+                        DatagramSocket socket = new DatagramSocket(6970);
+
+                        while (true) {
+                            // TODO: actually parse request
+                            DatagramPacket packet = new DatagramPacket(buf, buf.length);
+                            LOG.info("rpcListener thread about to try to receive packet");
+                            socket.receive(packet);
+                            LOG.info("rpcListener thread received packet");
+
+                            // TODO: add actual request data
+                            conn.insertInto(pendingTable)
+                                    .set(pendingTable.APPLICATION, 1)
+                                    .set(pendingTable.CORES, 1)
+                                    .set(pendingTable.MEMSLICES, 0)
+                                    .set(pendingTable.STATUS, "PENDING")
+                                    .set(pendingTable.CURRENT_NODE, -1)
+                                    .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                                    .execute();
+
+                            // TODO: actually send response
+                            InetAddress address = packet.getAddress();
+                            int port = packet.getPort();
+                            packet = new DatagramPacket(buf, buf.length, address, port);
+                            socket.send(packet);
+                        }
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        System.exit(-1);
+                    }
+                };
+        Thread thread = new Thread(rpcRunner);
+        thread.start();
+
+        // Enter loop solve loop
+        long lastSolve = System.currentTimeMillis();
+        while (true) {
+            // Sleep for poll interval
+            Thread.sleep(this.pollInterval);
+
+            // Get time elapsed since last solve
+            long timeElapsed = System.currentTimeMillis() - lastSolve;
+
+            // Get number of rows
+            int numRequests = this.getNumPendingRequests();
+
+            // If time since last solve is too long, solve
+            if (timeElapsed >= this.maxTimePerSolve || numRequests >= this.maxReqsPerSolve) {
+                if (timeElapsed >= this.maxTimePerSolve) {
+                    LOG.info(String.format("solver thread solving due to timeout: numRequests = %d", numRequests));
+                } else {
+                    LOG.info(String.format("solver thread solving due to numRequests = %d", numRequests));
+                }
+                // Only actually solve if work to do
+                if (numRequests > 0) {
+                    // Exit if solver error
+                    if (!this.runModelAndUpdateDB()) {
+                        break;
+                    }
+                }
+                lastSolve = System.currentTimeMillis();
+            }
+        } // while (true)
     }
 }
 
@@ -86,11 +162,11 @@ public class SchedulerRunner extends DCMRunner {
     private static final String MAX_REQUESTS_PER_SOLVE_OPTION = "maxReqsPerSolve";
     private static final int MAX_REQUESTS_PER_SOLVE_DEFAULT = 15;
     private static final String MAX_TIME_PER_SOLVE_OPTION = "maxTimePerSolve";
-    private static final int MAX_TIME_PER_SOLVE_DEFAULT = 10; // in seconds
-    private static final String POLL_INTERVAL_MILLIS_OPTION = "pollInterval";
-    private static final int POLL_INTERVAL_MILLIS_DEFAULT = 100; // in milliseconds
+    private static final int MAX_TIME_PER_SOLVE_DEFAULT = 10; // in milliseconds
+    private static final String POLL_INTERVAL_OPTION = "pollInterval";
+    private static final int POLL_INTERVAL_DEFAULT = 500; // 1/2 second in milliseconds
 
-    public static void main(String[] args) throws ClassNotFoundException {
+    public static void main(String[] args) throws ClassNotFoundException, InterruptedException {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
         int numNodes = NUM_NODES_DEFAULT;
@@ -99,8 +175,8 @@ public class SchedulerRunner extends DCMRunner {
         int numApps = NUM_APPS_DEFAULT;
         boolean useCapFunction = USE_CAP_FUNCTION_DEFAULT;
         int maxReqsPerSolve = MAX_REQUESTS_PER_SOLVE_DEFAULT;
-        int maxTimePerSolve = MAX_TIME_PER_SOLVE_DEFAULT;
-        int pollInterval = POLL_INTERVAL_MILLIS_DEFAULT;
+        long maxTimePerSolve = MAX_TIME_PER_SOLVE_DEFAULT;
+        long pollInterval = POLL_INTERVAL_DEFAULT;
 
         // create Options object
         Options options = new Options();
@@ -153,14 +229,14 @@ public class SchedulerRunner extends DCMRunner {
                 .hasArg()
                 .desc(String.format("max number of second between each solver iteration.\nDefault: %d",
                         MAX_REQUESTS_PER_SOLVE_DEFAULT))
-                .type(Integer.class)
+                .type(Long.class)
                 .build();
         Option pollIntervalOption = Option.builder("p")
-                .longOpt(POLL_INTERVAL_MILLIS_OPTION).argName(POLL_INTERVAL_MILLIS_OPTION)
+                .longOpt(POLL_INTERVAL_OPTION).argName(POLL_INTERVAL_OPTION)
                 .hasArg()
                 .desc(String.format("interval to check if the solver should run in milliseconds.\nDefault: %d",
-                        POLL_INTERVAL_MILLIS_DEFAULT))
-                .type(Integer.class)
+                        POLL_INTERVAL_DEFAULT))
+                .type(Long.class)
                 .build();
 
         options.addOption(helpOption);
@@ -206,8 +282,8 @@ public class SchedulerRunner extends DCMRunner {
             if (cmd.hasOption(MAX_TIME_PER_SOLVE_OPTION)) {
                 maxTimePerSolve = Integer.parseInt(cmd.getOptionValue(MAX_TIME_PER_SOLVE_OPTION));
             }
-            if (cmd.hasOption(POLL_INTERVAL_MILLIS_OPTION)) {
-                pollInterval = Integer.parseInt(cmd.getOptionValue(POLL_INTERVAL_MILLIS_OPTION));
+            if (cmd.hasOption(POLL_INTERVAL_OPTION)) {
+                pollInterval = Long.parseLong(cmd.getOptionValue(POLL_INTERVAL_OPTION));
             }
         } catch (ParseException e) {
             LOG.error("Failed to parse command line");
