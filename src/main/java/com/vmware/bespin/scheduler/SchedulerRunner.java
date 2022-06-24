@@ -1,5 +1,6 @@
 package com.vmware.bespin.scheduler;
 
+import com.vmware.bespin.rpc.*;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
@@ -13,10 +14,6 @@ import org.jooq.impl.DSL;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.commons.cli.*;
-
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.InetAddress;
 
 class Scheduler
 {
@@ -52,14 +49,16 @@ class Scheduler
         // TODO: should find a way to batch these
         // Add new assignments to placed, remove new assignments from pending
         results.forEach(r -> {
-                    conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, placedTable.MEMSLICES)
-                            .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"), (int) r.get("MEMSLICES"))
+                    conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES,
+                                    placedTable.MEMSLICES)
+                            .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"),
+                                    (int) r.get("MEMSLICES"))
                             .onDuplicateKeyUpdate()
                             .set(placedTable.CORES,  placedTable.CORES.plus((int) r.get("CORES")))
                             .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus((int) r.get("MEMSLICES")))
                             .execute();
                     conn.deleteFrom(pendingTable)
-                            .where(pendingTable.ID.eq((int) r.get("ID")))
+                            .where(pendingTable.ID.eq((long) r.get("ID")))
                             .execute();
                 }
         );
@@ -75,37 +74,43 @@ class Scheduler
     }
 
     public void run() throws InterruptedException {
+
+        class RequestHandler extends RPCHandler {
+            private long requestId = 0;
+
+            public RequestHandler() {}
+
+            @Override
+            public RPCMsg handleRPC(RPCMsg msg) {
+                RPCHeader hdr = msg.hdr();
+                assert(hdr.msgLen == SchedulerRequest.BYTE_LEN);
+                SchedulerRequest req = new SchedulerRequest(msg.payload());
+
+                conn.insertInto(pendingTable)
+                        .set(pendingTable.ID, requestId)
+                        .set(pendingTable.APPLICATION, (int) req.application)
+                        .set(pendingTable.CORES, (int) req.cores)
+                        .set(pendingTable.MEMSLICES, (int) req.memslices)
+                        .set(pendingTable.STATUS, "PENDING")
+                        .set(pendingTable.CURRENT_NODE, -1)
+                        .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
+                        .execute();
+
+                SchedulerResponse res = new SchedulerResponse(requestId);
+                hdr.msgLen = SchedulerResponse.BYTE_LEN;
+                requestId++;
+                return new RPCMsg(hdr, res.toBytes());
+            }
+        }
+
         Runnable rpcRunner =
                 () -> {
-                    byte[] buf = new byte[256];
                     try {
                         LOG.info("rpcListener thread started");
-                        DatagramSocket socket = new DatagramSocket(6970);
-
-                        while (true) {
-                            // TODO: actually parse request
-                            DatagramPacket packet = new DatagramPacket(buf, buf.length);
-                            LOG.info("rpcListener thread about to try to receive packet");
-                            socket.receive(packet);
-                            LOG.info("rpcListener thread received packet");
-
-                            // TODO: add actual request data
-                            conn.insertInto(pendingTable)
-                                    .set(pendingTable.APPLICATION, 1)
-                                    .set(pendingTable.CORES, 1)
-                                    .set(pendingTable.MEMSLICES, 0)
-                                    .set(pendingTable.STATUS, "PENDING")
-                                    .set(pendingTable.CURRENT_NODE, -1)
-                                    .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
-                                    .execute();
-
-                            // TODO: actually send response
-                            InetAddress address = packet.getAddress();
-                            int port = packet.getPort();
-                            packet = new DatagramPacket(buf, buf.length, address, port);
-                            socket.send(packet);
-                        }
-
+                        RPCServer rpcServer = new TCPServer("10.10.10.10", 69070);
+                        rpcServer.register((byte) 1, new RequestHandler());
+                        rpcServer.addClient();
+                        rpcServer.runServer();
                     } catch (Exception e) {
                         e.printStackTrace();
                         System.exit(-1);

@@ -139,14 +139,16 @@ class Simulation
         // TODO: should find a way to batch these
         // Add new assignments to placed, remove new assignments from pending
         results.forEach(r -> {
-            conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, placedTable.MEMSLICES)
-                    .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"), (int) r.get("MEMSLICES"))
+            conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES,
+                            placedTable.MEMSLICES)
+                    .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"),
+                            (int) r.get("MEMSLICES"))
                     .onDuplicateKeyUpdate()
                     .set(placedTable.CORES,  placedTable.CORES.plus((int) r.get("CORES")))
                     .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus((int) r.get("MEMSLICES")))
                     .execute();
             conn.deleteFrom(pendingTable)
-                    .where(pendingTable.ID.eq((int) r.get("ID")))
+                    .where(pendingTable.ID.eq((long) r.get("ID")))
                     .execute();
             }
         );

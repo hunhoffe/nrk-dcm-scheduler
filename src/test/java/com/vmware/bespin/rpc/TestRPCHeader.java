@@ -1,7 +1,6 @@
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.rpc;
 
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
 public class TestRPCHeader {
 

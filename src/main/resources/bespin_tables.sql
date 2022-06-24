@@ -9,7 +9,7 @@ create table applications(
     primary key (id));
 
 create table pending(
-    id integer not null auto_increment,
+    id long not null auto_increment,
     application integer,
     cores integer,
     memslices integer,
