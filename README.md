@@ -8,8 +8,17 @@ This project contains a Simulator and Simulator Runner, which can be used to ben
 
 ## Dependencies
 
-Install Java 16 SDK and maven. I think it also works with Java 18 but DCM is
+Install Java 16 SDK and maven 3.8.4. I think it also works with Java 18 but DCM is
 not tested with Java 18, so best to be safe with Java 16.
+```
+sudo apt install openjdk-16-jre openjdk-16-jdk
+sudo apt install maven
+```
+
+The default maven version for Ubuntu did NOT work when I tried it, so I used some
+directions online to manually install 3.8.4 (the symbolic links and maven download link
+didn't work in [this](https://phoenixnap.com/kb/install-maven-on-ubuntu) tutorial, 
+but all the rest of the instructions did).
 
 ### DCM Build
 We use a custom version of DCM, for efficiency purposes, found [here](https://github.com/hunhoffe/declarative-cluster-management)
@@ -17,14 +26,18 @@ You'll need to build and install the jar into your local maven repository, rathe
 
 Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
 to install minizinc.
+```
+sudo apt install minizinc
+```
 
 Then clone the DCM repo. Build and test to make sure it's functioning correctly:
 ```
 git clone git@github.com:hunhoffe/declarative-cluster-management.git dcm
 cd dcm
-git checkout --track capacity_function
+git checkout --track origin/capacity_function
 ./gradlew build -x test
 ```
+
 Then, push the jar to your local maven repository:
 ```
 ./gradlew publishToMavenLocal -x sign
