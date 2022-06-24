@@ -39,12 +39,19 @@ mvn clean compile assembly:single
 ```
 You don't always need the clean, but if you update the database schema it is needed.
 
-### Run
+### Run the Scheduler:
 Run the jar with:
 ```bash
 java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [OPTIONS]
 ```
 Run with a ```-h``` to see parameters and usage instructions.
+
+### Run a Simulation:
+Run the jar with:
+```bash
+java -Dlog4j.configurationFile=src/main/resources/log4j2.xml -cp target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar com.vmware.bespin.scheduler.SimulationRunner [OPTIONS]
+```
+Run with a ```-h``` to see usage message.
 
 ### Test
 ```bash

@@ -77,7 +77,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.vmware.bespin.scheduler.SimulationRunner</mainClass>
+                            <mainClass>com.vmware.bespin.scheduler.SchedulerRunner</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

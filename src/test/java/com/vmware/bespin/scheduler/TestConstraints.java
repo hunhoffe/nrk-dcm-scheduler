@@ -1,7 +1,6 @@
 package com.vmware.bespin.scheduler;
 
 import com.vmware.dcm.Model;
-import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
 import com.vmware.dcm.backend.ortools.OrToolsSolver;
 import org.jooq.DSLContext;
@@ -21,13 +20,13 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
                 .setMaxTimeInSeconds(300);
-        Model model = Model.build(conn, b.build(), List.of(Constraints.getPlacedConstraint().sql));
+        Model model = Model.build(conn, b.build(), List.of(Constraints.getPlacedConstraint().sql()));
 
         // two nodes with 1 core, 1 memslice each
         conn.execute("insert into nodes values(1, 1, 1)");
@@ -52,13 +51,13 @@ public class TestConstraints {
 
             // this is the one that was already placed
             if ((int) r.get("ID") == 3) {
-                assertEquals("PLACED", (String) r.get("STATUS"));
+                assertEquals("PLACED", r.get("STATUS"));
                 assertEquals(1, (int) r.get("CURRENT_NODE"));
                 assertEquals((int) r.get("CURRENT_NODE"), (int) r.get("CONTROLLABLE__NODE"));
                 assertEquals(1, (int) r.get("CORES"));
                 assertEquals(1, (int) r.get("MEMSLICES"));
             } else {
-                assertEquals("PENDING", (String) r.get("STATUS"));
+                assertEquals("PENDING", r.get("STATUS"));
                 assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
             }
         });
@@ -67,42 +66,42 @@ public class TestConstraints {
     @Test
     public void testCapacity() throws ClassNotFoundException {
         capacityTestWithPlaced(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getSpareView().sql,
-                Constraints.getCapacityConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getSpareView().sql(),
+                Constraints.getCapacityConstraint().sql()));
 
         capacityTestWithoutPlaced(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getSpareView().sql,
-                Constraints.getCapacityConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getSpareView().sql(),
+                Constraints.getCapacityConstraint().sql()));
     }
 
     @Test
     public void testLoadBalance() throws ClassNotFoundException {
         loadBalanceTest(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getSpareView().sql,
-                Constraints.getCapacityConstraint().sql,
-                Constraints.getLoadBalanceCoreConstraint().sql,
-                Constraints.getLoadBalanceMemsliceConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getSpareView().sql(),
+                Constraints.getCapacityConstraint().sql(),
+                Constraints.getLoadBalanceCoreConstraint().sql(),
+                Constraints.getLoadBalanceMemsliceConstraint().sql()));
     }
 
     @Test
     public void testCapacityFunction() throws ClassNotFoundException {
         capacityTestWithPlaced(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getCapacityFunctionCoreConstraint().sql,
-                Constraints.getCapacityFunctionMemsliceConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getCapacityFunctionCoreConstraint().sql(),
+                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         capacityTestWithoutPlaced(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getCapacityFunctionCoreConstraint().sql,
-                Constraints.getCapacityFunctionMemsliceConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getCapacityFunctionCoreConstraint().sql(),
+                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         loadBalanceTest(List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getCapacityFunctionCoreConstraint().sql,
-                Constraints.getCapacityFunctionMemsliceConstraint().sql));
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getCapacityFunctionCoreConstraint().sql(),
+                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
     }
 
     @Test
@@ -110,18 +109,18 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getCapacityFunctionCoreConstraint().sql,
-                Constraints.getCapacityFunctionMemsliceConstraint().sql,
-                Constraints.getAppLocalityPlacedConstraint().sql,
-                Constraints.getAppLocalityPendingConstraint().sql
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getCapacityFunctionCoreConstraint().sql(),
+                Constraints.getCapacityFunctionMemsliceConstraint().sql(),
+                Constraints.getAppLocalityPlacedConstraint().sql(),
+                Constraints.getAppLocalityPendingConstraint().sql()
         ));
 
         // three nodes with two cores, two memslices each
@@ -148,7 +147,7 @@ public class TestConstraints {
             // double check values in results are as expected
             assertEquals(1, (int) r.get("APPLICATION"));
             assertEquals(2, (int) r.get("CONTROLLABLE__NODE"));
-            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals("PENDING", r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
         });
     }
@@ -159,17 +158,17 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                Constraints.getPlacedConstraint().sql,
-                Constraints.getCapacityFunctionCoreConstraint().sql,
-                Constraints.getCapacityFunctionMemsliceConstraint().sql,
-                Constraints.getAppLocalitySingleConstraint().sql
+                Constraints.getPlacedConstraint().sql(),
+                Constraints.getCapacityFunctionCoreConstraint().sql(),
+                Constraints.getCapacityFunctionMemsliceConstraint().sql(),
+                Constraints.getAppLocalitySingleConstraint().sql()
         ));
 
         // three nodes with two cores, two memslices each
@@ -196,7 +195,7 @@ public class TestConstraints {
             // double check values in results are as expected
             assertEquals(1, (int) r.get("APPLICATION"));
             assertEquals(2, (int) r.get("CONTROLLABLE__NODE"));
-            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals("PENDING", r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
         });
     }
@@ -205,7 +204,7 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -241,7 +240,7 @@ public class TestConstraints {
             // double check values in results are as expected
             assertEquals(1, (int) r.get("APPLICATION"));
             assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE"));
-            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals("PENDING", r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
             if ((int) r.get("CORES") == 1) {
                 if ((int) r.get("CONTROLLABLE__NODE") == 1) {
@@ -266,7 +265,7 @@ public class TestConstraints {
         conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
         // run model and check result
         try {
-            results = model.solve("PENDING");
+            model.solve("PENDING");
             fail("Model should fail");
         } catch (SolverException e) {
             assertTrue(e.toString().contains("INFEASIBLE"));
@@ -277,7 +276,7 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -312,7 +311,7 @@ public class TestConstraints {
             // double check values in results are as expected
             assertEquals(1, (int) r.get("APPLICATION"));
             assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE"));
-            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals("PENDING", r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
             if ((int) r.get("CORES") == 1) {
                 if ((int) r.get("CONTROLLABLE__NODE") == 1) {
@@ -337,7 +336,7 @@ public class TestConstraints {
         conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
         // run model and check result
         try {
-            results = model.solve("PENDING");
+            model.solve("PENDING");
             fail("Model should fail");
         } catch (SolverException e) {
             assertTrue(e.toString().contains("INFEASIBLE"));
@@ -348,7 +347,7 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        SimulationRunner.setupDb(conn);
+        DCMRunner.setupDb(conn);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -383,7 +382,7 @@ public class TestConstraints {
             assertEquals(1, (int) r.get("APPLICATION"));
             assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE") ||
                     3 == (int) r.get("CONTROLLABLE__NODE"));
-            assertEquals("PENDING", (String) r.get("STATUS"));
+            assertEquals("PENDING", r.get("STATUS"));
             assertEquals(1, (int) r.get("CORES"));
             assertEquals(0, (int) r.get("MEMSLICES"));
             if ((int) r.get("CORES") == 1) {
@@ -421,7 +420,7 @@ public class TestConstraints {
                 assertEquals(1, (int) r.get("APPLICATION"));
                 assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE") ||
                         3 == (int) r.get("CONTROLLABLE__NODE"));
-                assertEquals("PENDING", (String) r.get("STATUS"));
+                assertEquals("PENDING", r.get("STATUS"));
                 assertEquals(0, (int) r.get("CORES"));
                 assertEquals(1, (int) r.get("MEMSLICES"));
 
