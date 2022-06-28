@@ -106,12 +106,16 @@ class Scheduler
         Runnable rpcRunner =
                 () -> {
                     try {
-                        LOG.info("rpcListener thread started");
-                        RPCServer rpcServer = new TCPServer("10.10.10.10", 69070);
+                        LOG.info("RPCServer thread started");
+                        RPCServer rpcServer = new TCPServer("172.31.0.20", 6970);
+                        LOG.info("Created server");
                         rpcServer.register((byte) 1, new RequestHandler());
+                        LOG.info("Registered handler");
                         rpcServer.addClient();
+                        LOG.info("Added Client");
                         rpcServer.runServer();
                     } catch (Exception e) {
+                        LOG.error("RPCServer thread failed");
                         e.printStackTrace();
                         System.exit(-1);
                     }

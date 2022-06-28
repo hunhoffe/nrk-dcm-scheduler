@@ -6,7 +6,9 @@ import org.apache.logging.log4j.Logger;
 import java.io.*;
 import java.net.*;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 
 
 public class TCPServer extends RPCServer {
@@ -30,10 +32,7 @@ public class TCPServer extends RPCServer {
                 this.socket.bind(sAddr);
                 LOG.info("Server socket address: " + this.socket.getLocalSocketAddress());
                 done = true;
-            } catch (Exception e) {
-                LOG.info("Failed to connect socket");
-                LOG.debug(e.toString());
-            }
+            } catch (Exception e) { }
         }
     }
 
@@ -60,6 +59,10 @@ public class TCPServer extends RPCServer {
             this.clientSocket = this.socket.accept();
             this.clientOut = clientSocket.getOutputStream();
             this.clientIn = clientSocket.getInputStream();
+
+            RPCMsg msg = this.receive();
+            this.respond(msg);
+
             return true;
         } catch (IOException e) {
             e.printStackTrace();
