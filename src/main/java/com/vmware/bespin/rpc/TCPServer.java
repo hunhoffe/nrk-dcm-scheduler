@@ -6,9 +6,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.*;
 import java.net.*;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Iterator;
 
 
 public class TCPServer extends RPCServer {
@@ -22,17 +20,23 @@ public class TCPServer extends RPCServer {
 
     public TCPServer(String ip, int port) throws IOException {
         InetAddress ipAddr = InetAddress.getByName(ip);
-        SocketAddress sAddr = new InetSocketAddress(ipAddr, port);
 
         // Retry until successful just in cast tap interfaces aren't up
         boolean done = false;
         while (!done) {
             try {
-                this.socket = new ServerSocket();
-                this.socket.bind(sAddr);
+                this.socket = new ServerSocket(port, 1, ipAddr);
                 LOG.info("Server socket address: " + this.socket.getLocalSocketAddress());
                 done = true;
-            } catch (Exception e) { }
+            } catch (Exception e) { 
+                e.printStackTrace();
+                try {
+                    Thread.sleep(10000);
+                } catch (InterruptedException e1) {
+                    // TODO Auto-generated catch block
+                    e1.printStackTrace();
+                }
+            }
         }
     }
 
@@ -76,14 +80,15 @@ public class TCPServer extends RPCServer {
         try {
             while (true) {
                 RPCMsg msg = this.receive();
-                if (this.handlers.containsKey(msg.hdr().msgType)) {
-                    this.respond(this.handlers.get(msg.hdr().msgType).handleRPC(msg));
+                if (this.handlers.containsKey(msg.hdr().getType())) {
+                    this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg));
                 } else {
-                    LOG.error("Invalid msgType: {}", msg.hdr().msgType);
+                    LOG.error("Invalid msgType: {}", msg.hdr().getType());
                 }
             }
         } catch (Exception e) {
             LOG.error("Server failed: {}", Arrays.toString(e.getStackTrace()));
+            e.printStackTrace();
             this.cleanUp();
             throw e;
         }
@@ -116,18 +121,19 @@ public class TCPServer extends RPCServer {
 
         // Read in entire header
         while (bytesRead < RPCHeader.BYTE_LEN) {
-            ret = this.clientIn.read(hdrBuff, bytesRead, RPCHeader.BYTE_LEN);
+            ret = this.clientIn.read(hdrBuff, bytesRead, RPCHeader.BYTE_LEN - bytesRead);
             if (ret > 0) {
                 bytesRead += ret;
             }
         }
         RPCHeader hdr = new RPCHeader(this.hdrBuff);
+        LOG.info("Received header: {}", hdr.toString());
 
         // Read in entire payload
         byte[] payload = new byte[(int) hdr.msgLen];
         bytesRead = 0;
         while (bytesRead < hdr.msgLen) {
-            ret = this.clientIn.read(payload, bytesRead, RPCHeader.BYTE_LEN);
+            ret = this.clientIn.read(payload, bytesRead, (int) hdr.msgLen - bytesRead);
             if (ret > 0) {
                 bytesRead += ret;
             }
@@ -141,12 +147,14 @@ public class TCPServer extends RPCServer {
         }
 
         // Write out header
-        this.clientOut.write(msg.hdr().toBytes());
+        byte[] bytes = msg.hdr().toBytes();
+        this.clientOut.write(bytes);
+        this.clientOut.flush();
 
         // Write out payload
-        this.clientOut.write(msg.payload());
-
-        // Make sure output is flushed
-        this.clientOut.flush();
+        if (msg.payload().length > 0) {
+            this.clientOut.write(msg.payload());
+            this.clientOut.flush();
+        }
     }
 }
