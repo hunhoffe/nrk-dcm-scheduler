@@ -13,7 +13,7 @@ public class TestRPCHeader {
         assert(hdr2.clientId == hdr.clientId);
         assert(hdr2.pid == hdr.pid);
         assert(hdr2.reqId == hdr.reqId);
-        assert(hdr2.msgType == hdr.msgType);
+        assert(hdr2.getType() == hdr.getType());
         assert(hdr2.msgLen == hdr.msgLen);
     }
 }

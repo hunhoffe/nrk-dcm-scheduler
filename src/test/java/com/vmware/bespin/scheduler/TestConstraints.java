@@ -50,7 +50,7 @@ public class TestConstraints {
             assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE"));
 
             // this is the one that was already placed
-            if ((int) r.get("ID") == 3) {
+            if ((long) r.get("ID") == 3) {
                 assertEquals("PLACED", r.get("STATUS"));
                 assertEquals(1, (int) r.get("CURRENT_NODE"));
                 assertEquals((int) r.get("CURRENT_NODE"), (int) r.get("CONTROLLABLE__NODE"));
