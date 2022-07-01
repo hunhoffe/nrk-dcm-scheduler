@@ -1,4 +1,10 @@
-# Controller Scheduler
+# Rackscale NrOS DCM Scheduler
+
+## About
+
+This project uses [Declarative Cluster Management (or DCM)](https://github.com/vmware/declarative-cluster-management) to schedule cores and memslices (fixed-size chunks of memory) to nodes within a rackscale cluster.
+
+This project contains a Simulator and Simulator Runner, which can be used to benchmark DCM over simulated cluster conditions. This project also contains a Scheduler and Scheduler Runner which can interface with NRK using RPCs and a UDP connection to accept resource requests and return assignments.
 
 ## Dependencies
 
@@ -6,14 +12,17 @@ Install Java 16 SDK and maven. I think it also works with Java 18 but DCM is
 not tested with Java 18, so best to be safe with Java 16.
 
 ### DCM Build
-We use the newest version of DCM, so you'll need to build and 
-install the jar into your local maven repository.
+We use a custom version of DCM, for efficiency purposes, found [here](https://github.com/hunhoffe/declarative-cluster-management)
+You'll need to build and install the jar into your local maven repository, rather than using the general DCM version.
 
-Follow the links on the [DCM README](https://github.com/vmware/declarative-cluster-management) 
+Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
 to install minizinc.
 
 Then clone the DCM repo. Build and test to make sure it's functioning correctly:
 ```
+git clone git@github.com:hunhoffe/declarative-cluster-management.git dcm
+cd dcm
+git checkout --track capacity_function
 ./gradlew build -x test
 ```
 Then, push the jar to your local maven repository:
@@ -21,22 +30,21 @@ Then, push the jar to your local maven repository:
 ./gradlew publishToMavenLocal -x sign
 ```
 
-## Controller
+## How to Build and Run
 
 ### Build
 Create a runnable jar with:
 ```bash
 mvn clean compile assembly:single
 ```
-You don't technically always need the clean, but if you update the
-database schema it is needed.
+You don't always need the clean, but if you update the database schema it is needed.
 
 ### Run
 Run the jar with:
 ```bash
 java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [OPTIONS]
 ```
-Run with a ```-h``` to see usage message.
+Run with a ```-h``` to see parameters and usage instructions.
 
 ### Test
 ```bash
