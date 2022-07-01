@@ -13,31 +13,45 @@ import org.jooq.Record;
 import org.jooq.impl.DSL;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+
 import org.apache.commons.cli.*;
 
 class Scheduler
 {
-    final Model model;
-    final DSLContext conn;
-
-    final int maxReqsPerSolve;
-    final long maxTimePerSolve;
-    final long pollInterval;
-
+    private final Model model;
+    private final DSLContext conn;
+    private final int maxReqsPerSolve;
+    private final long maxTimePerSolve;
+    private final long pollInterval;
+    private final DatagramSocket udpSocket;
+    private final InetAddress ip;
+    private final int port;
+    int requestsReceived = 0;
+    int allocationsSent = 0;
     private static final Logger LOG = LogManager.getLogger(Scheduler.class);
 
     static final Pending pendingTable = Pending.PENDING;
     static final Placed placedTable = Placed.PLACED;
 
-    Scheduler(Model model, DSLContext conn, int maxReqsPerSolve, long maxTimePerSolve, long pollInterval) {
+    Scheduler(Model model, DSLContext conn, int maxReqsPerSolve, long maxTimePerSolve, long pollInterval, InetAddress ip, int port) throws SocketException {
         this.model = model;
         this.conn = conn;
         this.maxReqsPerSolve = maxReqsPerSolve;
         this.maxTimePerSolve = maxTimePerSolve;
         this.pollInterval = pollInterval;
+        this.udpSocket = new DatagramSocket();
+        this.ip = ip;
+        this.port = port;
     }
 
-    public boolean runModelAndUpdateDB() {
+    public boolean runModelAndUpdateDB() throws IOException {
         Result<? extends Record> results;
         try {
             results = model.solve("PENDING");
@@ -46,25 +60,33 @@ class Scheduler
             return false;
         }
 
-        // TODO: should find a way to batch these
-        // Add new assignments to placed, remove new assignments from pending
-        results.forEach(r -> {
-                    conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES,
-                                    placedTable.MEMSLICES)
-                            .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"),
-                                    (int) r.get("MEMSLICES"))
-                            .onDuplicateKeyUpdate()
-                            .set(placedTable.CORES,  placedTable.CORES.plus((int) r.get("CORES")))
-                            .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus((int) r.get("MEMSLICES")))
-                            .execute();
-                    conn.deleteFrom(pendingTable)
-                            .where(pendingTable.ID.eq((long) r.get("ID")))
-                            .execute();
-                }
-        );
+        // TODO: should find a way to batch these, both to/from database but also in communication with controller
+        // Add new assignments to placed, remove new assignments from pending, notify listener of changes
+        for (Record r : results) {
+            conn.insertInto(placedTable, placedTable.APPLICATION, placedTable.NODE, placedTable.CORES,
+                            placedTable.MEMSLICES)
+                    .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"),
+                            (int) r.get("MEMSLICES"))
+                    .onDuplicateKeyUpdate()
+                    .set(placedTable.CORES,  placedTable.CORES.plus((int) r.get("CORES")))
+                    .set(placedTable.MEMSLICES, placedTable.MEMSLICES.plus((int) r.get("MEMSLICES")))
+                    .execute();
+            conn.deleteFrom(pendingTable)
+                    .where(pendingTable.ID.eq((long) r.get("ID")))
+                    .execute();
 
-        // TODO: send updates to remote server
+                SchedulerAssignment assignment = new SchedulerAssignment((long) r.get("ID"), ((Integer) 
+                        r.get("CONTROLLABLE__NODE")).longValue());
+                DatagramPacket packet = new DatagramPacket(assignment.toBytes(), SchedulerAssignment.BYTE_LEN);
+                packet.setAddress(this.ip);
+                packet.setPort(this.port);
+                this.udpSocket.send(packet);
+                this.allocationsSent += 1;
+                LOG.info("Send allocation for {}", (long) r.get("ID"));
+                this.udpSocket.receive(packet);
+        }
 
+        LOG.info("Requests Recevied: {}, Allocations Sent: {}", this.requestsReceived, this.allocationsSent);
         return true;
     }
 
@@ -73,12 +95,15 @@ class Scheduler
         return ((Long) this.conn.fetch(numRequests).get(0).getValue(0)).intValue();
     }
 
-    public void run() throws InterruptedException {
+    public void run() throws InterruptedException, IOException {
 
         class RequestHandler extends RPCHandler {
             private long requestId = 0;
+            private Scheduler scheduler = null;
 
-            public RequestHandler() {}
+            public RequestHandler(Scheduler scheduler) {
+                this.scheduler = scheduler;
+            }
 
             @Override
             public RPCMsg handleRPC(RPCMsg msg) {
@@ -99,6 +124,7 @@ class Scheduler
                 SchedulerResponse res = new SchedulerResponse(requestId);
                 hdr.msgLen = SchedulerResponse.BYTE_LEN;
                 requestId++;
+                scheduler.requestsReceived++;
                 return new RPCMsg(hdr, res.toBytes());
             }
         }
@@ -109,7 +135,7 @@ class Scheduler
                         LOG.info("RPCServer thread started");
                         RPCServer rpcServer = new TCPServer("172.31.0.20", 6970);
                         LOG.info("Created server");
-                        rpcServer.register((byte) 1, new RequestHandler());
+                        rpcServer.register((byte) 1, new RequestHandler(this));
                         LOG.info("Registered handler");
                         rpcServer.addClient();
                         LOG.info("Added Client");
@@ -175,7 +201,7 @@ public class SchedulerRunner extends DCMRunner {
     private static final String POLL_INTERVAL_OPTION = "pollInterval";
     private static final int POLL_INTERVAL_DEFAULT = 500; // 1/2 second in milliseconds
 
-    public static void main(String[] args) throws ClassNotFoundException, InterruptedException {
+    public static void main(String[] args) throws ClassNotFoundException, InterruptedException, SocketException, UnknownHostException, IOException {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
         int numNodes = NUM_NODES_DEFAULT;
@@ -309,7 +335,7 @@ public class SchedulerRunner extends DCMRunner {
                 numNodes, coresPerNode, memslicesPerNode, numApps, useCapFunction, maxReqsPerSolve, maxTimePerSolve,
                 pollInterval);
         Model model = createModel(conn, useCapFunction);
-        Scheduler scheduler = new Scheduler(model, conn, maxReqsPerSolve, maxTimePerSolve, pollInterval);
+        Scheduler scheduler = new Scheduler(model, conn, maxReqsPerSolve, maxTimePerSolve, pollInterval, InetAddress.getByName("172.31.0.11"), 6971);
         scheduler.run();
     }
 }
