@@ -19,17 +19,9 @@ else
 	exit -1
 fi
 
-# Check for github ssh key
-if ssh -o "StrictHostKeyChecking no" -T git@github.com 2>&1 | grep -q "You've successfully authenticated"; then
-	echo "Verified SSH access to git."
-else
-	echo "ERROR: Please initialized your github ssh key before proceeding."
-	exit -1
-fi
-
 # Clone, build, and install custom DCM package
 sudo apt install minizinc
-git clone git@github.com:hunhoffe/declarative-cluster-management.git dcm
+git clone https://github.com/hunhoffe/declarative-cluster-management.git dcm
 cd dcm
 git checkout --track origin/capacity_function
 ./gradlew build -x test
