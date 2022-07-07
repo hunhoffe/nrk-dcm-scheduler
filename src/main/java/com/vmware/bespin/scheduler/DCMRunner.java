@@ -14,7 +14,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 public abstract class DCMRunner {
@@ -67,13 +71,14 @@ public abstract class DCMRunner {
                 """);
     }
 
-    static void initDB(final DSLContext conn, int numNodes, int coresPerNode, int memslicesPerNode,
-                       int numApps, int randomSeed, boolean populate) {
+    static void initDB(final DSLContext conn, final int numNodes, final int coresPerNode, 
+                final int memslicesPerNode, final int numApps, final int randomSeed, 
+                final boolean populate) {
         final Nodes nodeTable = Nodes.NODES;
         final Applications appTable = Applications.APPLICATIONS;
         final Placed placedTable = Placed.PLACED;
 
-        Random rand = new Random(randomSeed);
+        final Random rand = new Random(randomSeed);
         setupDb(conn);
 
         // Add nodes with specified cores
@@ -101,25 +106,25 @@ public abstract class DCMRunner {
             int memsliceAllocs = numNodes * memslicesPerNode;
             memsliceAllocs = (int) Math.ceil((float) memsliceAllocs * 0.70);
 
-            HashMap<Integer, List<Integer>> appAllocMap = new HashMap<>();
+            final HashMap<Integer, List<Integer>> appAllocMap = new HashMap<>();
 
             // Assign cores the applications
             for (int i = 0; i < coreAllocs; i++) {
-                int application = rand.nextInt(numApps) + 1;
-                List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+                final int application = rand.nextInt(numApps) + 1;
+                final List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
                 appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
             }
 
             // Assign memslices to applications
             for (int i = 0; i < memsliceAllocs; i++) {
-                int application = rand.nextInt(numApps) + 1;
-                List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+                final int application = rand.nextInt(numApps) + 1;
+                final List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
                 appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
             }
 
             // Assign application allocs to nodes
-            for (Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
-                int application = entry.getKey();
+            for (final Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
+                final int application = entry.getKey();
                 int cores = entry.getValue().get(0);
                 int memslices = entry.getValue().get(1);
 
@@ -127,7 +132,7 @@ public abstract class DCMRunner {
                 while (cores > 0 || memslices > 0) {
 
                     // Choose a random node
-                    int node = rand.nextInt(numNodes) + 1;
+                    final int node = rand.nextInt(numNodes) + 1;
 
                     // figure out how many cores/memslices we can alloc on that node
                     String sql = String.format("select cores from allocated where node = %d", node);
@@ -136,7 +141,7 @@ public abstract class DCMRunner {
                         coresUsed = (int) conn.fetch(sql).get(0).getValue(0);
                     } catch (NullPointerException | IndexOutOfBoundsException ignored) {
                     }
-                    int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
+                    final int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
                     sql = String.format("select memslices from allocated where node = %d", node);
                     int memslicesUsed = 0;
@@ -144,12 +149,13 @@ public abstract class DCMRunner {
                         memslicesUsed = (int) conn.fetch(sql).get(0).getValue(0);
                     } catch (NullPointerException | IndexOutOfBoundsException ignored) {
                     }
-                    int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
+                    final int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
                     // If we can alloc anything, do so
                     if (coresToAlloc > 0 || memslicesToAlloc > 0) {
                         conn.insertInto(placedTable,
-                                        placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, placedTable.MEMSLICES)
+                                        placedTable.APPLICATION, placedTable.NODE, placedTable.CORES, 
+                                        placedTable.MEMSLICES)
                                 .values(application, node, coresToAlloc, memslicesToAlloc)
                                 .onDuplicateKeyUpdate()
                                 .set(placedTable.CORES, placedTable.CORES.plus(coresToAlloc))
@@ -165,13 +171,13 @@ public abstract class DCMRunner {
 
             // Double check correctness
             String sql = "select sum(cores) from allocated";
-            int totalCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+            final int totalCoresUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
             sql = "select sum(memslices) from allocated";
-            int totalMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
+            final int totalMemslicesUsed = ((Long) conn.fetch(sql).get(0).getValue(0)).intValue();
             sql = "select max(cores) from allocated";
-            int maxCoresUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
+            final int maxCoresUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
             sql = "select max(memslices) from allocated";
-            int maxMemslicesUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
+            final int maxMemslicesUsed = (Integer) conn.fetch(sql).get(0).getValue(0);
             assert (totalCoresUsed == coreAllocs);
             assert (maxCoresUsed <= coresPerNode);
             assert (totalMemslicesUsed == memsliceAllocs);
@@ -185,8 +191,8 @@ public abstract class DCMRunner {
         }
     }
 
-    static Model createModel(final DSLContext conn, boolean useCapFunc) {
-        List<String> constraints = new ArrayList<>();
+    static Model createModel(final DSLContext conn, final boolean useCapFunc) {
+        final List<String> constraints = new ArrayList<>();
         constraints.add(Constraints.getPlacedConstraint().sql());
 
         if (useCapFunc) {
@@ -204,11 +210,11 @@ public abstract class DCMRunner {
         constraints.add(Constraints.getAppLocalityPlacedConstraint().sql());
         constraints.add(Constraints.getAppLocalityPendingConstraint().sql());
 
-        OrToolsSolver.Builder b = new OrToolsSolver.Builder()
+        final OrToolsSolver.Builder builder = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
                 .setUseCapacityPresenceLiterals(false)
                 .setMaxTimeInSeconds(300);
-        return Model.build(conn, b.build(), constraints);
+        return Model.build(conn, builder.build(), constraints);
     }
 
     static void printStats(final DSLContext conn) {

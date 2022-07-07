@@ -48,7 +48,8 @@ public class Constraints {
                     select * from pending
                     join unallocated
                         on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores,
+                        unallocated.cores) = true
                 """);
     }
 
@@ -60,7 +61,8 @@ public class Constraints {
                     select * from pending
                     join unallocated
                         on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, 
+                        unallocated.memslices) = true
                 """);
     }
 
