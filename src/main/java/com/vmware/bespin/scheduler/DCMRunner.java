@@ -206,6 +206,7 @@ public abstract class DCMRunner {
 
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
+                .setUseCapacityPresenceLiterals(false)
                 .setMaxTimeInSeconds(300);
         return Model.build(conn, b.build(), constraints);
     }
