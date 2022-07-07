@@ -79,25 +79,25 @@ class Scheduler {
         for (final Record record : results) {
             conn.insertInto(PLACED_TABLE, PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
                             PLACED_TABLE.MEMSLICES)
-                    .values((int) record.get("APPLICATION"), (int) record.get("CONTROLLABLE__NODE"), 
-                            (int) record.get("CORES"), (int) record.get("MEMSLICES"))
+                    .values((Integer) record.get("APPLICATION"), (Integer) record.get("CONTROLLABLE__NODE"), 
+                            (Integer) record.get("CORES"), (Integer) record.get("MEMSLICES"))
                     .onDuplicateKeyUpdate()
-                    .set(PLACED_TABLE.CORES,  PLACED_TABLE.CORES.plus((int) record.get("CORES")))
-                    .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus((int) record.get("MEMSLICES")))
+                    .set(PLACED_TABLE.CORES,  PLACED_TABLE.CORES.plus((Integer) record.get("CORES")))
+                    .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus((Integer) record.get("MEMSLICES")))
                     .execute();
             conn.deleteFrom(PENDING_TABLE)
-                    .where(PENDING_TABLE.ID.eq((long) record.get("ID")))
+                    .where(PENDING_TABLE.ID.eq((Long) record.get("ID")))
                     .execute();
 
                 // TODO: move allocation out of loop
-                final SchedulerAssignment assignment = new SchedulerAssignment((long) record.get("ID"), ((Integer) 
+                final SchedulerAssignment assignment = new SchedulerAssignment((Long) record.get("ID"), ((Integer) 
                 record.get("CONTROLLABLE__NODE")).longValue());
                 final DatagramPacket packet = new DatagramPacket(assignment.toBytes(), SchedulerAssignment.BYTE_LEN);
                 packet.setAddress(this.ip);
                 packet.setPort(this.port);
                 this.udpSocket.send(packet);
                 this.allocationsSent += 1;
-                LOG.info("Send allocation for {}", (long) record.get("ID"));
+                LOG.info("Send allocation for {}", (Long) record.get("ID"));
                 this.udpSocket.receive(packet);
         }
 
@@ -114,7 +114,7 @@ class Scheduler {
 
         class RequestHandler extends RPCHandler {
             private long requestId = 0;
-            private Scheduler scheduler = null;
+            private Scheduler scheduler;
 
             public RequestHandler(final Scheduler scheduler) {
                 this.scheduler = scheduler;
@@ -156,8 +156,8 @@ class Scheduler {
                         rpcServer.runServer();
                     } catch (final IOException e) {
                         LOG.error("RPCServer thread failed");
-                        e.printStackTrace();
-                        System.exit(-1);
+                        LOG.error(e);
+                        throw new RuntimeException();
                     }
                 };
         final Thread thread = new Thread(rpcRunner);
@@ -239,52 +239,52 @@ public class SchedulerRunner extends DCMRunner {
         final Option numNodesOption = Option.builder("n")
                 .longOpt(NUM_NODES_OPTION).argName(NUM_NODES_OPTION)
                 .hasArg()
-                .desc(String.format("number of nodes.\nDefault: %d", NUM_NODES_DEFAULT))
+                .desc(String.format("number of nodes.%nDefault: %d", NUM_NODES_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option coresPerNodeOption = Option.builder("c")
                 .longOpt(CORES_PER_NODE_OPTION).argName(CORES_PER_NODE_OPTION)
                 .hasArg()
-                .desc(String.format("cores per node.\nDefault: %d", CORES_PER_NODE_DEFAULT))
+                .desc(String.format("cores per node.%nDefault: %d", CORES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option memslicesPerNodeOption = Option.builder("m")
                 .longOpt(MEMSLICES_PER_NODE_OPTION).argName(MEMSLICES_PER_NODE_OPTION)
                 .hasArg()
-                .desc(String.format("number of 2 MB memory slices per node.\nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
+                .desc(String.format("number of 2 MB memory slices per node.%nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option numAppsOption = Option.builder("p")
                 .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
                 .hasArg()
-                .desc(String.format("number of applications running on the cluster.\nDefault: %d", NUM_APPS_DEFAULT))
+                .desc(String.format("number of applications running on the cluster.%nDefault: %d", NUM_APPS_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option useCapFunctionOption = Option.builder("f")
                 .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
                 .hasArg()
-                .desc(String.format("use capability function vs hand-written constraints.\nDefault: %b",
+                .desc(String.format("use capability function vs hand-written constraints.%nDefault: %b",
                         USE_CAP_FUNCTION_DEFAULT))
                 .type(Boolean.class)
                 .build();
         final Option maxReqsPerSolveOption = Option.builder("r")
                 .longOpt(MAX_REQUESTS_PER_SOLVE_OPTION).argName(MAX_REQUESTS_PER_SOLVE_OPTION)
                 .hasArg()
-                .desc(String.format("max number of new allocations request per solver iteration.\nDefault: %d",
+                .desc(String.format("max number of new allocations request per solver iteration.%nDefault: %d",
                         MAX_REQUESTS_PER_SOLVE_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option maxTimePerSolveOption = Option.builder("t")
                 .longOpt(MAX_TIME_PER_SOLVE_OPTION).argName(MAX_TIME_PER_SOLVE_OPTION)
                 .hasArg()
-                .desc(String.format("max number of second between each solver iteration.\nDefault: %d",
+                .desc(String.format("max number of second between each solver iteration.%nDefault: %d",
                         MAX_REQUESTS_PER_SOLVE_DEFAULT))
                 .type(Long.class)
                 .build();
         final Option pollIntervalOption = Option.builder("p")
                 .longOpt(POLL_INTERVAL_OPTION).argName(POLL_INTERVAL_OPTION)
                 .hasArg()
-                .desc(String.format("interval to check if the solver should run in milliseconds.\nDefault: %d",
+                .desc(String.format("interval to check if the solver should run in milliseconds.%nDefault: %d",
                         POLL_INTERVAL_DEFAULT))
                 .type(Long.class)
                 .build();

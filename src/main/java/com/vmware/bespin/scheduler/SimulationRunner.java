@@ -61,7 +61,7 @@ class Simulation {
         final int coreAllocationsToMake = (int) Math.ceil((double) this.allocsPerStep * coreMemsliceRatio);
         final int maxCoreAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalCores);
         final int minCoreAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalCores);
-        LOG.info("Core allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
+        LOG.info("Core allocationsToMake: {}, maxAllocations: {}, minAllocation: {}%n",
                 coreAllocationsToMake, maxCoreAllocations, minCoreAllocations);
 
         int turnoverCounter = 0;
@@ -98,7 +98,7 @@ class Simulation {
         final int memsliceAllocationsToMake = (int) Math.floor((double) this.allocsPerStep * (1 - coreMemsliceRatio));
         final int maxMemsliceAllocations = (int) Math.ceil((((double) MAX_CAPACITY) / 100) * totalMemslices);
         final int minMemsliceAllocations = (int) Math.ceil((((double) MIN_CAPACITY) / 100) * totalMemslices);
-        LOG.info("Memslice allocationsToMake: {}, maxAllocations: {}, minAllocation: {}\n",
+        LOG.info("Memslice allocationsToMake: {}, maxAllocations: {}, minAllocation: {}%n",
                 memsliceAllocationsToMake, maxMemsliceAllocations, minMemsliceAllocations);
 
         turnoverCounter = 0;
@@ -150,14 +150,14 @@ class Simulation {
         results.forEach(r -> {
             conn.insertInto(PLACED_TABLE, PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
                             PLACED_TABLE.MEMSLICES)
-                    .values((int) r.get("APPLICATION"), (int) r.get("CONTROLLABLE__NODE"), (int) r.get("CORES"),
-                            (int) r.get("MEMSLICES"))
+                    .values((Integer) r.get("APPLICATION"), (Integer) r.get("CONTROLLABLE__NODE"), 
+                            (Integer) r.get("CORES"), (Integer) r.get("MEMSLICES"))
                     .onDuplicateKeyUpdate()
-                    .set(PLACED_TABLE.CORES,  PLACED_TABLE.CORES.plus((int) r.get("CORES")))
-                    .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus((int) r.get("MEMSLICES")))
+                    .set(PLACED_TABLE.CORES,  PLACED_TABLE.CORES.plus((Integer) r.get("CORES")))
+                    .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus((Integer) r.get("MEMSLICES")))
                     .execute();
             conn.deleteFrom(PENDING_TABLE)
-                    .where(PENDING_TABLE.ID.eq((long) r.get("ID")))
+                    .where(PENDING_TABLE.ID.eq((Long) r.get("ID")))
                     .execute();
             }
         );
@@ -182,12 +182,14 @@ class Simulation {
             final String coresAvailableSQL = String.format("select cores from nodes where id = %d", node);
             Long usedCores = 0L;
             int coreCapacity = 0;
-            try {
-                usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
-            } catch (final NullPointerException ignored) { }
-            try {
-                coreCapacity = (int) this.conn.fetch(coresAvailableSQL).get(0).getValue(0);
-            } catch (final NullPointerException ignored) { }
+            Result<Record> resultData = this.conn.fetch(allocatedCoresSQL);
+            if (null != resultData && resultData.isNotEmpty()) {
+                usedCores += (Long) resultData.get(0).getValue(0);
+            }
+            resultData = this.conn.fetch(coresAvailableSQL);
+            if (null != resultData && resultData.isNotEmpty()) {
+                coreCapacity = (int) resultData.get(0).getValue(0);
+            }
 
             nodesPerCoreCheck = nodesPerCoreCheck && (coreCapacity >= usedCores.intValue());
 
@@ -196,12 +198,14 @@ class Simulation {
             final String memslicesAvailableSQL = String.format("select memslices from nodes where id = %d", node);
             Long usedMemslices = 0L;
             int memsliceCapacity = 0;
-            try {
-                usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-            } catch (final NullPointerException ignored) { }
-            try {
-                memsliceCapacity = (int) this.conn.fetch(memslicesAvailableSQL).get(0).getValue(0);
-            } catch (final NullPointerException ignored) { }
+            resultData = this.conn.fetch(allocatedMemslicesSQL);
+            if (null != resultData && resultData.isNotEmpty()) {
+                usedMemslices += (Long) resultData.get(0).getValue(0);
+            }
+            resultData = this.conn.fetch(memslicesAvailableSQL);
+            if (null != resultData && resultData.isNotEmpty()) {
+                memsliceCapacity = (int) resultData.get(0).getValue(0);
+            }
 
             memslicesPerCoreCheck = memslicesPerCoreCheck && (memsliceCapacity >= usedMemslices.intValue());
         }
@@ -212,9 +216,10 @@ class Simulation {
     private int usedCores() {
         final String allocatedCoresSQL = "select sum(cores) from placed";
         Long usedCores = 0L;
-        try {
-            usedCores += (Long) this.conn.fetch(allocatedCoresSQL).get(0).getValue(0);
-        } catch (final NullPointerException ignored) { }
+        final Result<Record> coreRequest = this.conn.fetch(allocatedCoresSQL);
+        if (null != coreRequest && coreRequest.isNotEmpty()) {
+            usedCores += (Long) coreRequest.get(0).getValue(0);
+        }
         return usedCores.intValue();
     }
 
@@ -226,9 +231,10 @@ class Simulation {
     private int usedMemslices() {
         final String allocatedMemslicesSQL = "select sum(memslices) from placed";
         Long usedMemslices = 0L;
-        try {
-            usedMemslices += (Long) this.conn.fetch(allocatedMemslicesSQL).get(0).getValue(0);
-        } catch (final NullPointerException ignored) { }
+        final Result<Record> memsliceRequest = this.conn.fetch(allocatedMemslicesSQL);
+        if (null != memsliceRequest && memsliceRequest.isNotEmpty()) {
+            usedMemslices += (Long) memsliceRequest.get(0).getValue(0);
+        }
         return usedMemslices.intValue();
     }
 
@@ -286,49 +292,49 @@ public class SimulationRunner extends DCMRunner {
         final Option numStepsOption = Option.builder("s")
                 .longOpt(NUM_STEPS_OPTION).argName(NUM_STEPS_OPTION)
                 .hasArg(true)
-                .desc(String.format("maximum number of steps to run the simulations.\nDefault: %d", NUM_STEPS_DEFAULT))
+                .desc(String.format("maximum number of steps to run the simulations.%nDefault: %d", NUM_STEPS_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option numNodesOption = Option.builder("n")
                 .longOpt(NUM_NODES_OPTION).argName(NUM_NODES_OPTION)
                 .hasArg()
-                .desc(String.format("number of nodes.\nDefault: %d", NUM_NODES_DEFAULT))
+                .desc(String.format("number of nodes.%nDefault: %d", NUM_NODES_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option coresPerNodeOption = Option.builder("c")
                 .longOpt(CORES_PER_NODE_OPTION).argName(CORES_PER_NODE_OPTION)
                 .hasArg()
-                .desc(String.format("cores per node.\nDefault: %d", CORES_PER_NODE_DEFAULT))
+                .desc(String.format("cores per node.%nDefault: %d", CORES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option memslicesPerNodeOption = Option.builder("m")
                 .longOpt(MEMSLICES_PER_NODE_OPTION).argName(MEMSLICES_PER_NODE_OPTION)
                 .hasArg()
-                .desc(String.format("number of 2 MB memory slices per node.\nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
+                .desc(String.format("number of 2 MB memory slices per node.%nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option numAppsOption = Option.builder("p")
                 .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
                 .hasArg()
-                .desc(String.format("number of applications running on the cluster.\nDefault: %d", NUM_APPS_DEFAULT))
+                .desc(String.format("number of applications running on the cluster.%nDefault: %d", NUM_APPS_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option allocsPerStepOption = Option.builder("a")
                 .longOpt(ALLOCS_PER_STEP_OPTION).argName(ALLOCS_PER_STEP_OPTION)
                 .hasArg()
-                .desc(String.format("number of new allocations per step.\nDefault: %d", ALLOCS_PER_STEP_DEFAULT))
+                .desc(String.format("number of new allocations per step.%nDefault: %d", ALLOCS_PER_STEP_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option randomSeedOption = Option.builder("r")
                 .longOpt(RANDOM_SEED_OPTION).argName(RANDOM_SEED_OPTION)
                 .hasArg()
-                .desc(String.format("seed from random.\nDefault: %d", RANDOM_SEED_DEFAULT))
+                .desc(String.format("seed from random.%nDefault: %d", RANDOM_SEED_DEFAULT))
                 .type(Integer.class)
                 .build();
         final Option useCapFunctionOption = Option.builder("f")
                 .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
                 .hasArg()
-                .desc(String.format("use capability function vs hand-written constraints.\nDefault: %b",
+                .desc(String.format("use capability function vs hand-written constraints.%nDefault: %b",
                         USE_CAP_FUNCTION_DEFAULT))
                 .type(Boolean.class)
                 .build();

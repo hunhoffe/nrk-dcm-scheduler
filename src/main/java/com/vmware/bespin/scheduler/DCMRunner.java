@@ -8,6 +8,8 @@ import com.vmware.dcm.backend.ortools.OrToolsSolver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.jooq.Result;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -137,17 +139,17 @@ public abstract class DCMRunner {
                     // figure out how many cores/memslices we can alloc on that node
                     String sql = String.format("select cores from allocated where node = %d", node);
                     int coresUsed = 0;
-                    try {
+                    final Result<Record> coreResults = conn.fetch(sql);
+                    if (null != coreResults && coreResults.isNotEmpty()) {
                         coresUsed = (int) conn.fetch(sql).get(0).getValue(0);
-                    } catch (NullPointerException | IndexOutOfBoundsException ignored) {
                     }
                     final int coresToAlloc = Math.min(coresPerNode - coresUsed, cores);
 
                     sql = String.format("select memslices from allocated where node = %d", node);
                     int memslicesUsed = 0;
-                    try {
+                    final Result<Record> memsliceResults = conn.fetch(sql);
+                    if (null != memsliceResults && memsliceResults.isNotEmpty()) {
                         memslicesUsed = (int) conn.fetch(sql).get(0).getValue(0);
-                    } catch (NullPointerException | IndexOutOfBoundsException ignored) {
                     }
                     final int memslicesToAlloc = Math.min(memslicesPerNode - memslicesUsed, memslices);
 
