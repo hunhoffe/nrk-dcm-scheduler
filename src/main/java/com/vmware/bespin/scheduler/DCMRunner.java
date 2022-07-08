@@ -219,7 +219,7 @@ public abstract class DCMRunner {
 
         final OrToolsSolver.Builder builder = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(true)
-                .setUseCapacityPresenceLiterals(false)
+                // .setUseCapacityPresenceLiterals(false) TODO: add this back in for future DCM versions
                 .setMaxTimeInSeconds(300);
         return Model.build(conn, builder.build(), constraints);
     }

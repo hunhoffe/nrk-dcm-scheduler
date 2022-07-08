@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [ setup-ci ]
+  pull_request:
+    branches: [ setup-ci ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: ['16']
+    name: Tests (Java ${{ matrix.java }})
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up JDK {{ matrix.java }}
+      uses: actions/setup-java@v3
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'adopt'
+        cache: maven
+
+    - name: Install MiniZinc
+      run: |
+           wget https://github.com/MiniZinc/MiniZincIDE/releases/download/2.3.2/MiniZincIDE-2.3.2-bundle-linux-x86_64.tgz -O minizinc.tgz
+           tar -xzvf minizinc.tgz
+           rm minizinc.tgz
+
+    - name: Build with Maven
+      run: mvn clean --batch-mode --update-snapshots verify
