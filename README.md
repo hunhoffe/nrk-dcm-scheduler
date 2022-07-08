@@ -1,5 +1,6 @@
 [![License](https://img.shields.io/badge/License-BSD%202--Clause-green.svg)](https://opensource.org/licenses/BSD-2-Clause)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+![Build](https://github.com/hunhoffe/nrk-dcm-scheduler/actions/workflows/ci.yaml/badge.svg)
 
 # Rackscale NrOS DCM Scheduler
 
