@@ -245,7 +245,7 @@
 		<version>${maven-release-plugin.version}</version>
 		<configuration>
 		  <scmCommentPrefix>[ci skip]</scmCommentPrefix>
-		  <tagNameFormat>@{project.version}</tagNameFormat>
+		  <tagNameFormat>release-@{project.version}</tagNameFormat>
 		</configuration>
 	     </plugin>
         </plugins>
