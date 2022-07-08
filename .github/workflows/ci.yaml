@@ -30,4 +30,4 @@ jobs:
            rm minizinc.tgz
 
     - name: Build with Maven
-      run: mvn --batch-mode --update-snapshots verify
+      run: mvn clean --batch-mode --update-snapshots verify
