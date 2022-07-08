@@ -4,7 +4,7 @@
 
     <groupId>com.vmware.bespin</groupId>
     <artifactId>scheduler</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.1</version>
     <name>scheduler</name>
 
     <properties>
