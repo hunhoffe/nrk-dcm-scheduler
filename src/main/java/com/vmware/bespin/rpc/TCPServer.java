@@ -1,10 +1,19 @@
+/*
+ * Copyright 2022 VMware, Inc. All Rights Reserved.
+ * SPDX-License-Identifier: BSD-2 OR MIT
+ */
+
 package com.vmware.bespin.rpc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.io.*;
-import java.net.*;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -18,30 +27,25 @@ public class TCPServer extends RPCServer {
     byte[] hdrBuff = new byte[RPCHeader.BYTE_LEN];
     private static final Logger LOG = LogManager.getLogger(TCPServer.class);
 
-    public TCPServer(String ip, int port) throws IOException {
-        InetAddress ipAddr = InetAddress.getByName(ip);
-
+    public TCPServer(final String ip, final int port) throws IOException {
         // Retry until successful just in cast tap interfaces aren't up
         boolean done = false;
         while (!done) {
             try {
-                this.socket = new ServerSocket(port, 1, ipAddr);
+                this.socket = new ServerSocket(port, 1, InetAddress.getByName(ip));
                 LOG.info("Server socket address: " + this.socket.getLocalSocketAddress());
                 done = true;
-            } catch (Exception e) { 
+            } catch (final IOException e) { 
                 e.printStackTrace();
                 try {
                     Thread.sleep(10000);
-                } catch (InterruptedException e1) {
-                    // TODO Auto-generated catch block
-                    e1.printStackTrace();
-                }
+                } catch (final InterruptedException ignored) { }
             }
         }
     }
 
     @Override
-    public boolean register(byte rpcId, RPCHandler handler) {
+    public boolean register(final byte rpcId, final RPCHandler handler) {
         // Cannot add if key already exists
         if (this.handlers.containsKey(rpcId)) {
             return false;
@@ -64,11 +68,9 @@ public class TCPServer extends RPCServer {
             this.clientOut = clientSocket.getOutputStream();
             this.clientIn = clientSocket.getInputStream();
 
-            RPCMsg msg = this.receive();
-            this.respond(msg);
-
+            this.respond(this.receive());
             return true;
-        } catch (IOException e) {
+        } catch (final IOException e) {
             e.printStackTrace();
             this.cleanUp();
             return false;
@@ -79,14 +81,14 @@ public class TCPServer extends RPCServer {
     public boolean runServer() throws IOException {
         try {
             while (true) {
-                RPCMsg msg = this.receive();
+                final RPCMessage msg = this.receive();
                 if (this.handlers.containsKey(msg.hdr().getType())) {
                     this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg));
                 } else {
                     LOG.error("Invalid msgType: {}", msg.hdr().getType());
                 }
             }
-        } catch (Exception e) {
+        } catch (final IOException e) {
             LOG.error("Server failed: {}", Arrays.toString(e.getStackTrace()));
             e.printStackTrace();
             this.cleanUp();
@@ -99,20 +101,20 @@ public class TCPServer extends RPCServer {
             if (null != this.clientOut) {
                 this.clientOut.close();
             }
-        } catch (Exception ignored) {}
+        } catch (final IOException ignored) { }
         try {
             if (null != this.clientIn) {
                 this.clientIn.close();
             }
-        } catch (Exception ignored) {}
+        } catch (final IOException ignored) { }
         try {
             if (null != this.clientSocket) {
                 this.clientSocket.close();
             }
-        } catch (Exception ignored) {}
+        } catch (final IOException ignored) { }
     }
 
-    private RPCMsg receive() throws IOException {
+    private RPCMessage receive() throws IOException {
         if (null == this.clientIn) {
             throw new IOException("No clients connected");
         }
@@ -126,11 +128,11 @@ public class TCPServer extends RPCServer {
                 bytesRead += ret;
             }
         }
-        RPCHeader hdr = new RPCHeader(this.hdrBuff);
+        final RPCHeader hdr = new RPCHeader(this.hdrBuff);
         LOG.info("Received header: {}", hdr.toString());
 
         // Read in entire payload
-        byte[] payload = new byte[(int) hdr.msgLen];
+        final byte[] payload = new byte[(int) hdr.msgLen];
         bytesRead = 0;
         while (bytesRead < hdr.msgLen) {
             ret = this.clientIn.read(payload, bytesRead, (int) hdr.msgLen - bytesRead);
@@ -138,16 +140,16 @@ public class TCPServer extends RPCServer {
                 bytesRead += ret;
             }
         }
-        return new RPCMsg(hdr, payload);
+        return new RPCMessage(hdr, payload);
     }
 
-    private void respond(RPCMsg msg) throws IOException {
+    private void respond(final RPCMessage msg) throws IOException {
         if (null == this.clientOut) {
             throw new IOException("No clients connected");
         }
 
         // Write out header
-        byte[] bytes = msg.hdr().toBytes();
+        final byte[] bytes = msg.hdr().toBytes();
         this.clientOut.write(bytes);
         this.clientOut.flush();
 

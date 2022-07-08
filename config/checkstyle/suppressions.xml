@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<!--
+  ~ Copyright 2018-2020 VMware, Inc. All Rights Reserved.
+  ~
+  ~ SPDX-License-Identifier: BSD-2
+  -->
+
+<!DOCTYPE suppressions PUBLIC
+        "-//Puppy Crawl//DTD Suppressions 1.1//EN"
+        "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
+
+<suppressions>
+    <suppress checks="IllegalCatch"
+              files="PodResourceEventHandler.java"
+            />
+
+    <suppress checks=".*" files="[\\/]generated-sources[\\/]"/>
+    <suppress checks=".*" files="[\\/]generated[\\/]"/>
+</suppressions>

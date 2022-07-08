@@ -1,3 +1,8 @@
+/*
+ * Copyright 2022 VMware, Inc. All Rights Reserved.
+ * SPDX-License-Identifier: BSD-2 OR MIT
+ */
+
 package com.vmware.bespin.scheduler;
 
 public class Constraints {
@@ -48,7 +53,8 @@ public class Constraints {
                     select * from pending
                     join unallocated
                         on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores, unallocated.cores) = true
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.cores,
+                        unallocated.cores) = true
                 """);
     }
 
@@ -60,7 +66,8 @@ public class Constraints {
                     select * from pending
                     join unallocated
                         on unallocated.node = pending.controllable__node
-                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, unallocated.memslices) = true
+                    check capacity_constraint(pending.controllable__node, unallocated.node, pending.memslices, 
+                        unallocated.memslices) = true
                 """);
     }
 

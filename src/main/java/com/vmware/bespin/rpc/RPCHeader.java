@@ -1,3 +1,8 @@
+/*
+ * Copyright 2022 VMware, Inc. All Rights Reserved.
+ * SPDX-License-Identifier: BSD-2 OR MIT
+ */
+
 package com.vmware.bespin.rpc;
 
 public class RPCHeader {
@@ -9,7 +14,7 @@ public class RPCHeader {
         private final long msgType;     // 8 byte
         public long msgLen;            // 8 bytes
 
-        public RPCHeader(long clientId, long pid, long reqId, long msgType, long msgLen) {
+        public RPCHeader(final long clientId, final long pid, final long reqId, final long msgType, final long msgLen) {
                 this.clientId = clientId;
                 this.pid = pid;
                 this.reqId = reqId;
@@ -17,8 +22,8 @@ public class RPCHeader {
                 this.msgLen = msgLen;
         }
 
-        public RPCHeader(byte[] data) {
-                assert(data.length == RPCHeader.BYTE_LEN);
+        public RPCHeader(final byte[] data) {
+                assert (data.length == RPCHeader.BYTE_LEN);
                 this.clientId = Utils.bytesToLong(data, 0);
                 this.pid = Utils.bytesToLong(data, Long.BYTES);
                 this.reqId = Utils.bytesToLong(data, Long.BYTES * 2);
@@ -27,7 +32,7 @@ public class RPCHeader {
         }
 
         public byte[] toBytes() {
-                byte[] buff = new byte[RPCHeader.BYTE_LEN];
+                final byte[] buff = new byte[RPCHeader.BYTE_LEN];
                 Utils.longToBytes(this.clientId, buff, 0);
                 Utils.longToBytes(this.pid, buff, Long.BYTES);
                 Utils.longToBytes(this.reqId, buff, Long.BYTES * 2);

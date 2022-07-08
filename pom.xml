@@ -133,6 +133,89 @@
                     </generator>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>4.7.0.0</version>
+                <dependencies>
+                  <!-- overwrite dependency on spotbugs if you want to specify the version of spotbugs -->
+                  <dependency>
+                    <groupId>com.github.spotbugs</groupId>
+                    <artifactId>spotbugs</artifactId>
+                    <version>4.7.1</version>
+                  </dependency>
+                </dependencies>
+		<configuration>
+		  <excludeFilterFile>config/spotbugs/findbugs-exclude.xml</excludeFilterFile>
+                </configuration>
+		<executions>
+                    <execution>
+                      <id>validate</id>
+                      <phase>validate</phase>
+                      <goals>
+                        <goal>check</goal>
+                      </goals>
+                    </execution>
+                  </executions>
+              </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.1.2</version>
+                <configuration>
+                    <configLocation>config/checkstyle/checkstyle.xml</configLocation>
+                    <encoding>UTF-8</encoding>
+                    <consoleOutput>true</consoleOutput>
+                    <failsOnError>true</failsOnError>
+                    <linkXRef>false</linkXRef>
+                  </configuration>
+                  <executions>
+                    <execution>
+                      <id>validate</id>
+                      <phase>validate</phase>
+                      <goals>
+                        <goal>check</goal>
+                      </goals>
+                    </execution>
+                  </executions>
+                  <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>9.2</version>
+                    </dependency>
+                </dependencies>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.0</version>
+                <configuration>
+                  <source>16</source>
+                  <target>16</target>
+                  <encoding>UTF-8</encoding>
+                  <compilerArgs>
+                    <arg>-XDcompilePolicy=simple</arg>
+                    <arg>-Xplugin:ErrorProne</arg>
+                  </compilerArgs>
+                  <annotationProcessorPaths>
+                    <path>
+                      <groupId>com.google.errorprone</groupId>
+                      <artifactId>error_prone_core</artifactId>
+                      <version>2.14.0</version>
+                    </path>
+                    <!-- Other annotation processors go here.
+        
+                    If 'annotationProcessorPaths' is set, processors will no longer be
+                    discovered on the regular -classpath; see also 'Using Error Prone
+                    together with other annotation processors' below. -->
+                  </annotationProcessorPaths>
+                </configuration>
+              </plugin>
+
         </plugins>
     </build>
 

@@ -1,0 +1,20 @@
+<!--
+  ~ Copyright 2018-2020 VMware, Inc. All Rights Reserved.
+  ~
+  ~ SPDX-License-Identifier: BSD-2
+  -->
+
+<FindBugsFilter>
+    <Match>
+        <Package name="com.vmware.bespin.scheduler.generated.tables"/>
+    </Match>
+    <Match>
+        <Package name="com.vmware.bespin.scheduler.generated"/>
+    </Match>
+    <Match>
+        <Bug code="EI"/>
+    </Match>
+    <Match>
+        <Bug code="EI2"/>
+    </Match>
+</FindBugsFilter>
