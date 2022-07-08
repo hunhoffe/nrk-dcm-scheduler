@@ -44,7 +44,6 @@ jobs:
 
       - name: Capture release version
         id: release-version
-        run: echo $(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
         run: echo "::set-output name=version::$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
 
       - name: Release Binaries
