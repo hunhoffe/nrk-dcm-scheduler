@@ -8,7 +8,7 @@
 
 This project uses [Declarative Cluster Management (or DCM)](https://github.com/vmware/declarative-cluster-management) to schedule cores and memslices (fixed-size chunks of memory) to nodes within a rackscale cluster.
 
-This project contains a Simulator and Simulator Runner, which can be used to benchmark DCM over simulated cluster conditions. This project also contains a Scheduler and Scheduler Runner which can interface with NRK using RPCs and a UDP connection to accept resource requests and return assignments.
+This project contains a Simulator and SimulatorRunner, which can be used to benchmark DCM over simulated cluster conditions. This project also contains a Scheduler and SchedulerRunner which can interface with NRK using RPCs and a UDP connection to accept resource requests and return assignments.
 
 ## Dependencies
 
@@ -16,36 +16,17 @@ Install Java 16 SDK and maven 3.8.4. I think it also works with Java 18 but DCM 
 not tested with Java 18, so best to be safe with Java 16.
 ```
 sudo apt install openjdk-16-jre openjdk-16-jdk
-sudo apt install maven
 ```
 
-The default maven version for Ubuntu did NOT work when I tried it, so I used some
-directions online to manually install 3.8.4 (the symbolic links and maven download link
-didn't work in [this](https://phoenixnap.com/kb/install-maven-on-ubuntu) tutorial, 
-but all the rest of the instructions did).
+The default maven version for Ubuntu did NOT work when I tried it, so use the ```maven_install.sh``` script.
 
-### DCM Build
-We use a custom version of DCM, for efficiency purposes, found [here](https://github.com/hunhoffe/declarative-cluster-management)
-You'll need to build and install the jar into your local maven repository, rather than using the general DCM version.
-
-Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
+DCM needs the minizinc solver installed. Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
 to install minizinc.
 ```
 sudo apt install minizinc
 ```
 
-Then clone the DCM repo. Build and test to make sure it's functioning correctly:
-```
-git clone git@github.com:hunhoffe/declarative-cluster-management.git dcm
-cd dcm
-git checkout --track origin/capacity_function
-./gradlew build -x test
-```
-
-Then, push the jar to your local maven repository:
-```
-./gradlew publishToMavenLocal -x sign
-```
+The GitHub CI runner uses Minizinc 2.3.2.
 
 ## How to Build and Run
 
