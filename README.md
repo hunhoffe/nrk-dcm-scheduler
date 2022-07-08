@@ -31,9 +31,9 @@ The GitHub CI runner uses Minizinc 2.3.2.
 ## How to Build and Run
 
 ### Build
-Create a runnable jar with:
+Create runnable jars (packaged with and without dependencies) with:
 ```bash
-mvn clean compile assembly:single
+mvn clean package
 ```
 You don't always need the clean, but if you update the database schema it is needed.
 
