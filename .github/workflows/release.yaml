@@ -44,7 +44,7 @@ jobs:
 
       - name: Capture release version
         id: release-version
-        run: echo "::set-output name=version::$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
+        run: echo "::set-output name=version::$(ls target/scheduler-*-with-dependencies.jar | sed -E 's/.*-([[:digit:]]+(\.[[:digit:]]+)+)-.*/\1/')"
 
       - name: Release Binaries
         uses: "marvinpinto/action-automatic-releases@latest"
