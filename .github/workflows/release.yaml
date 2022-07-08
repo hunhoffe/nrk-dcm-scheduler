@@ -1,0 +1,31 @@
+name: release version
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[ci skip]')"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and Test
+        uses: qcastel/github-actions-maven-cmd@0.0.26
+        with:
+            maven-args: "clean package"
+
+      - name: Release
+        uses: qcastel/github-actions-maven-release@0.0.26
+        env:
+          JAVA_HOME: /usr/lib/jvm/java-16-openjdk/
+        with:
+          git-release-bot-name: "bot-idhub"
+          git-release-bot-email: "bot@idhub.io"
+
+          maven-args: "-Dmaven.javadoc.skip=true -DskipTests -DskipITs -Dmaven.deploy.skip=true"
+          maven-servers: '[{"id": "serverId1", "username": "username", "password": "password", "privateKey": "test", "passphrase": "testes"}, {"id": "serverId2", "username": "username2", "password": "password2"}]'
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
