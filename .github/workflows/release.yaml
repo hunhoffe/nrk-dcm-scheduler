@@ -50,7 +50,7 @@ jobs:
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "${{ steps.release-version.outputs.version }}"
+          automatic_release_tag: "release-${{ steps.release-version.outputs.version }}"
           prerelease: false
           files: |
             target/scheduler-*-jar-with-dependencies.jar
