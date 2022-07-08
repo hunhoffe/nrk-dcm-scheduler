@@ -102,7 +102,7 @@ class Scheduler {
                 packet.setPort(this.port);
                 this.udpSocket.send(packet);
                 this.allocationsSent += 1;
-                LOG.info("Send allocation for {}", (Long) record.get("ID"));
+                LOG.info("Sent allocation for {}", (Long) record.get("ID"));
                 this.udpSocket.receive(packet);
         }
 
