@@ -3,7 +3,7 @@ name: "release"
 on:
   push:
     branches:
-      - "release"
+      - "main"
 
 jobs:
   release:
@@ -36,10 +36,10 @@ jobs:
         with:
           git-release-bot-name: "release-bot"
           git-release-bot-email: "release-bot@example.com"
-          release-branch-name: "release"
+          release-branch-name: "main"
 
           maven-args: "-Dmaven.javadoc.skip=true -DskipTests -DskipITs -Ddockerfile.skip -DdockerCompose.skip -Dmaven.deploy.skip=true"
-          maven-options: "-DbranchName=release"
+          maven-options: "-DbranchName=main"
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Capture release version
