@@ -6,7 +6,7 @@
 
 ## About
 
-This project uses [Declarative Cluster Management (or DCM)](https://github.com/vmware/declarative-cluster-management) to schedule cores and memslices (fixed-size chunks of memory) to nodes within a rackscale cluster.
+This project uses [Declarative Cluster Management (DCM)](https://github.com/vmware/declarative-cluster-management) to schedule cores and memslices (fixed-size chunks of memory) to nodes within a rackscale cluster.
 
 This project contains a Simulator and SimulatorRunner, which can be used to benchmark DCM over simulated cluster conditions. This project also contains a Scheduler and SchedulerRunner which can interface with NRK using RPCs and a UDP connection to accept resource requests and return assignments.
 
