@@ -6,13 +6,16 @@ on:
       - "release"
 
 jobs:
-  tagged-release:
+  maven-release:
     runs-on: "ubuntu-latest"
     if: "!contains(github.event.head_commit.message, '[ci skip]')"
     strategy:
       matrix:
         java: ['16']
-    name: "Release"
+    name: "Maven Release"
+
+    outputs:
+      version-tag: ${{ steps.version.outputs.version }}
 
     steps:
       - uses: actions/checkout@v3
@@ -42,11 +45,20 @@ jobs:
           maven-options: "-DbranchName=release"
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Release
+      - id: version
+        run: echo "::set-output name=version::$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)"
+
+  release-binaries:
+    runs-on: "ubuntu-latest"
+    needs: job1
+    name: "Release Binaries"
+
+    steps:
+      - name: Release Binaries
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "${{needs.job1.outputs.version-tag}}"
           prerelease: false
           files: |
-            LICENSE-MIT.txt
             target/scheduler-*-jar-with-dependencies.jar
