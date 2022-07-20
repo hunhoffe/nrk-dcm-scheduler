@@ -142,9 +142,8 @@ class Scheduler {
                         .execute();
 
                 hdr.msgLen = SchedulerResponse.BYTE_LEN;
-                requestId++;
                 scheduler.requestsReceived++;
-                return new RPCMessage(hdr, new SchedulerResponse(requestId).toBytes());
+                return new RPCMessage(hdr, new SchedulerResponse(requestId++).toBytes());
             }
         }
 
