@@ -34,7 +34,7 @@ public class RegisterNodeHandler extends RPCHandler {
                 .set(Scheduler.NODE_TABLE.CORES, (int) req.cores)
                 .set(Scheduler.NODE_TABLE.MEMSLICES, (int) req.memslices)
                 .execute();
-        LOG.info("Registered Node {} with {} cores, {} memslices", requestId, req.cores, req.memslices);
+        LOG.info("Handled register node request: {}, assigned id {}", req, requestId);
 
         hdr.msgLen = RegisterNodeRequest.BYTE_LEN;
         return new RPCMessage(hdr, new RegisterNodeResponse(requestId++).toBytes());

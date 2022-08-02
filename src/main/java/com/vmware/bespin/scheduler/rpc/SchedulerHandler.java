@@ -45,8 +45,7 @@ public class SchedulerHandler extends RPCHandler {
                 .set(Scheduler.PENDING_TABLE.CURRENT_NODE, -1)
                 .set(Scheduler.PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
                 .execute();
-        LOG.info("Processed scheduler request for app {} with {} cores, {} memslices",
-                req.application, req.cores, req.memslices);
+        LOG.info("Processed scheduler request: {}", req);
 
         hdr.msgLen = SchedulerResponse.BYTE_LEN;
         return new RPCMessage(hdr, new SchedulerResponse(requestId++).toBytes());
