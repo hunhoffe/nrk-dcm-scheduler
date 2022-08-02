@@ -5,6 +5,7 @@
 
 package com.vmware.bespin.rpc;
 
+import com.vmware.bespin.scheduler.rpc.RPCID;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,13 +46,13 @@ public class TCPServer extends RPCServer {
     }
 
     @Override
-    public boolean register(final byte rpcId, final RPCHandler handler) {
+    public boolean register(final RPCID rpcId, final RPCHandler handler) {
         // Cannot add if key already exists
-        if (this.handlers.containsKey(rpcId)) {
+        if (this.handlers.containsKey(rpcId.id())) {
             return false;
         }
 
-        this.handlers.put(rpcId, handler);
+        this.handlers.put(rpcId.id(), handler);
         return true;
     }
 

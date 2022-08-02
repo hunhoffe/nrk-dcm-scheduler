@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.scheduler.rpc;
 
 public class SchedulerRequest {
     public static final int BYTE_LEN = 3;
