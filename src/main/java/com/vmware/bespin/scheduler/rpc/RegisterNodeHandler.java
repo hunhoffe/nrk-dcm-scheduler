@@ -36,7 +36,7 @@ public class RegisterNodeHandler extends RPCHandler {
                 .execute();
         LOG.info("Handled register node request: {}, assigned id {}", req, requestId);
 
-        hdr.msgLen = RegisterNodeRequest.BYTE_LEN;
+        hdr.msgLen = RegisterNodeResponse.BYTE_LEN;
         return new RPCMessage(hdr, new RegisterNodeResponse(requestId++).toBytes());
     }
 }
