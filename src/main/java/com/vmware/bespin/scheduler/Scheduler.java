@@ -61,7 +61,7 @@ public class Scheduler {
         this.port = port;
     }
 
-    public boolean runModelAndUpdateDB() throws IOException, NullPointerException {
+    public boolean runModelAndUpdateDB() throws IOException {
         final Result<? extends Record> results;
         try {
             results = model.solve("PENDING");
@@ -78,9 +78,6 @@ public class Scheduler {
             final Integer controllableNode = (Integer) record.get("CONTROLLABLE__NODE");
             final Integer cores = (Integer) record.get("CORES");
             final Integer memslices = (Integer) record.get("MEMSLICES");
-            if (controllableNode == null) {
-                throw new NullPointerException();
-            }
 
             // Add to placed table
             conn.insertInto(PLACED_TABLE, PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
