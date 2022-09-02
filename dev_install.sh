@@ -23,4 +23,4 @@ mvn --version
 echo "source /etc/profile.d/maven.sh" >>  ~/.bashrc
 
 # Install minizinc
-sudo apt install minizinc
+sudo apt install -y minizinc
