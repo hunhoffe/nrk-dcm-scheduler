@@ -13,44 +13,44 @@ This project contains a Simulator and SimulatorRunner, which can be used to benc
 
 ## Dependencies
 
-Install Java 16 SDK and maven 3.8.4. I think it also works with Java 18 but DCM is
+If you need to setup a development environment, proceed to the development section. If you are a project user, please setup your environment as below. There are two dependencies needed to run this project:
+* **Java**: Install Java 16 SDK. I belive this project also works with Java 18 but DCM is
 not tested with Java 18, so best to be safe with Java 16.
-```
-sudo apt install openjdk-16-jre openjdk-16-jdk
-```
+* **Minizinc**: DCM needs the minizinc solver installed. Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
+to install minizinc, or the command below. The GitHub CI runner uses Minizinc 2.3.2.
 
-The default maven version for Ubuntu did NOT work when I tried it, so use the ```maven_install.sh``` script.
-
-DCM needs the minizinc solver installed. Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
-to install minizinc.
+Install the runtime dependencies with the command below:
 ```
-sudo apt install minizinc
+sudo apt install -y openjdk-16-jre openjdk-16-jdk minizinc
 ```
 
-The GitHub CI runner uses Minizinc 2.3.2.
+These commands were tested on Ubuntu 20.04.
 
-## How to Build and Run
-
-### Build
-Create runnable jars (packaged with and without dependencies) with:
-```bash
-mvn clean package
-```
-You don't always need the clean, but if you update the database schema it is needed.
+## How to Run
 
 ### Run the Scheduler:
-Run the jar with:
+Download a [release jar](https://github.com/hunhoffe/nrk-dcm-scheduler/releases).
+
 ```bash
-java -jar target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [OPTIONS]
+java -jar scheduler-<version>-jar-with-dependencies.jar  [OPTIONS]
 ```
 Run with a ```-h``` to see parameters and usage instructions.
 
 ### Run a Simulation:
 Run the jar with:
 ```bash
-java -Dlog4j.configurationFile=src/main/resources/log4j2.xml -cp target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar com.vmware.bespin.scheduler.SimulationRunner [OPTIONS]
+java -Dlog4j.configurationFile=src/main/resources/log4j2.xml -cp scheduler-<version>-jar-with-dependencies.jar com.vmware.bespin.scheduler.SimulationRunner [OPTIONS]
 ```
 Run with a ```-h``` to see usage message.
+
+## Development
+
+### Build
+Create runnable jars (packaged with and without dependencies) with:
+```bash
+mvn clean package
+```
+You don't always need the clean, but if you update the database schema it is needed. the produced jars will be in the ```target``` directory. 
 
 ### Test
 ```bash
