@@ -13,21 +13,26 @@ This project contains a Simulator and SimulatorRunner, which can be used to benc
 
 ## Dependencies
 
-Install Java 16 SDK and maven 3.8.4. I think it also works with Java 18 but DCM is
+### Runtime Dependencies
+There are two dependencies needed to run this project:
+* **Java**: Install Java 16 SDK. I belive this project also works with Java 18 but DCM is
 not tested with Java 18, so best to be safe with Java 16.
+* **Minizinc**: DCM needs the minizinc solver installed. Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
+to install minizinc, or the command below. The GitHub CI runner uses Minizinc 2.3.2.
+
+Install the runtime dependencies with the command below:
 ```
-sudo apt install openjdk-16-jre openjdk-16-jdk
+sudo apt install -y openjdk-16-jre openjdk-16-jdk minizinc
 ```
 
-The default maven version for Ubuntu did NOT work when I tried it, so use the ```maven_install.sh``` script.
-
-DCM needs the minizinc solver installed. Follow the links on the [DCM README](https://github.com/hunhoffe/declarative-cluster-management) 
-to install minizinc.
+### Development/Build Dependencies
+To build the project locally, you must also install maven 3.8.6. An example of how to do this is found in the ```dev_install.sh``` script. If you want to use the install script to install runtime and build dependencies, run:
 ```
-sudo apt install minizinc
+./dev_install.sh
+source /etc/profile.d/maven.sh
 ```
 
-The GitHub CI runner uses Minizinc 2.3.2.
+The script was tested on Ubuntu 20.04 CloudLab image in mind. 
 
 ## How to Build and Run
 
@@ -39,7 +44,7 @@ mvn clean package
 You don't always need the clean, but if you update the database schema it is needed.
 
 ### Run the Scheduler:
-Run the jar with:
+You can either download a release jar or build locally to get the jar. Run the jar with:
 ```bash
 java -jar target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [OPTIONS]
 ```
