@@ -8,11 +8,11 @@ package com.vmware.bespin.scheduler.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-//import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.Scheduler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-//import org.jooq.Field;
+import static org.jooq.impl.DSL.and;
 
 public class ReleaseHandler extends RPCHandler {
     private static final Logger LOG = LogManager.getLogger(ReleaseHandler.class);
@@ -27,26 +27,21 @@ public class ReleaseHandler extends RPCHandler {
         final RPCHeader hdr = msg.hdr();
         final ReleaseRequest req = new ReleaseRequest(msg.payload());
 
-        // TODO: implement this
-        /*
         // Add application to application table if new
         conn.insertInto(Scheduler.APPLICATION_TABLE)
                 .set(Scheduler.APPLICATION_TABLE.ID, (int) req.application)
                 .onDuplicateKeyIgnore()
                 .execute();
 
-        // Add request to pending table
-        conn.insertInto(Scheduler.PENDING_TABLE)
-                .set(Scheduler.PENDING_TABLE.ID, requestId)
-                .set(Scheduler.PENDING_TABLE.APPLICATION, (int) req.application)
-                .set(Scheduler.PENDING_TABLE.CORES, (int) req.cores)
-                .set(Scheduler.PENDING_TABLE.MEMSLICES, (int) req.memslices)
-                .set(Scheduler.PENDING_TABLE.STATUS, "PENDING")
-                .set(Scheduler.PENDING_TABLE.CURRENT_NODE, -1)
-                .set(Scheduler.PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
+        // TODO: should double check we don't go out of range
+        // Select all placed (used resources) belonging to this (application, node)
+        conn.update(Scheduler.PLACED_TABLE)
+                .set(Scheduler.PLACED_TABLE.CORES, Scheduler.PLACED_TABLE.CORES.sub(req.cores))
+                .set(Scheduler.PLACED_TABLE.MEMSLICES, Scheduler.PLACED_TABLE.MEMSLICES.sub(req.cores))
+                .where(and(Scheduler.PLACED_TABLE.APPLICATION.eq((int) req.application),
+                        Scheduler.PLACED_TABLE.NODE.eq((int) req.nodeId)))
                 .execute();
-        LOG.info("Processed scheduler request: {}", req);
-         */
+        LOG.info("Processed release request: {}", req);
 
         hdr.msgLen = ReleaseResponse.BYTE_LEN;
         return new RPCMessage(hdr, new ReleaseResponse(0).toBytes());
