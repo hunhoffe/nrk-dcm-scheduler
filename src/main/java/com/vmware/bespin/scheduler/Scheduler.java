@@ -10,7 +10,8 @@ import com.vmware.bespin.rpc.TCPServer;
 
 import com.vmware.bespin.scheduler.rpc.RPCID;
 import com.vmware.bespin.scheduler.rpc.RegisterNodeHandler;
-import com.vmware.bespin.scheduler.rpc.SchedulerHandler;
+import com.vmware.bespin.scheduler.rpc.AllocHandler;
+import com.vmware.bespin.scheduler.rpc.ReleaseHandler;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
@@ -118,7 +119,8 @@ public class Scheduler {
                         final RPCServer rpcServer = new TCPServer("172.31.0.20", 6970);
                         LOG.info("Created server");
                         rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler(conn));
-                        rpcServer.register(RPCID.SCHEDULER, new SchedulerHandler(conn));
+                        rpcServer.register(RPCID.ALLOC, new AllocHandler(conn));
+                        rpcServer.register(RPCID.RELEASE, new ReleaseHandler(conn));
                         LOG.info("Registered handlers");
                         rpcServer.addClient();
                         LOG.info("Added Client");

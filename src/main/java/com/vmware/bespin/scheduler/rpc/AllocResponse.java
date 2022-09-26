@@ -7,22 +7,22 @@ package com.vmware.bespin.scheduler.rpc;
 
 import com.vmware.bespin.rpc.Utils;
 
-public class SchedulerResponse {
+public class AllocResponse {
     public static final int BYTE_LEN = Long.BYTES;
 
     final long requestId;
 
-    public SchedulerResponse(final long requestId) {
+    public AllocResponse(final long requestId) {
         this.requestId = requestId;
     }
 
-    public SchedulerResponse(final byte[] data) {
-        assert (data.length == SchedulerResponse.BYTE_LEN);
+    public AllocResponse(final byte[] data) {
+        assert (data.length == AllocResponse.BYTE_LEN);
         this.requestId = Utils.bytesToLong(data, 0);
     }
 
     public byte[] toBytes() {
-        final byte[] buff = new byte[SchedulerResponse.BYTE_LEN];
+        final byte[] buff = new byte[AllocResponse.BYTE_LEN];
         Utils.longToBytes(this.requestId, buff, 0);
         return buff;
     }

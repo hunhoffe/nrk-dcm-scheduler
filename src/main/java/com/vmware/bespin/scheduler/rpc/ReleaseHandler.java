@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 VMware, Inc. All Rights Reserved.
+ * Copyright 2022 University of Colorado. All Rights Reserved.
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
@@ -8,27 +8,27 @@ package com.vmware.bespin.scheduler.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+//import com.vmware.bespin.scheduler.Scheduler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.Field;
+//import org.jooq.Field;
 
-public class SchedulerHandler extends RPCHandler {
-    private static final Logger LOG = LogManager.getLogger(SchedulerHandler.class);
-    private long requestId = 0;
+public class ReleaseHandler extends RPCHandler {
+    private static final Logger LOG = LogManager.getLogger(ReleaseHandler.class);
     private DSLContext conn;
 
-    public SchedulerHandler(final DSLContext conn) {
+    public ReleaseHandler(final DSLContext conn) {
         this.conn = conn;
     }
 
     @Override
     public RPCMessage handleRPC(final RPCMessage msg) {
         final RPCHeader hdr = msg.hdr();
-        assert (hdr.msgLen == SchedulerRequest.BYTE_LEN);
-        final SchedulerRequest req = new SchedulerRequest(msg.payload());
+        final ReleaseRequest req = new ReleaseRequest(msg.payload());
 
+        // TODO: implement this
+        /*
         // Add application to application table if new
         conn.insertInto(Scheduler.APPLICATION_TABLE)
                 .set(Scheduler.APPLICATION_TABLE.ID, (int) req.application)
@@ -46,8 +46,9 @@ public class SchedulerHandler extends RPCHandler {
                 .set(Scheduler.PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
                 .execute();
         LOG.info("Processed scheduler request: {}", req);
+         */
 
-        hdr.msgLen = SchedulerResponse.BYTE_LEN;
-        return new RPCMessage(hdr, new SchedulerResponse(requestId++).toBytes());
+        hdr.msgLen = ReleaseResponse.BYTE_LEN;
+        return new RPCMessage(hdr, new ReleaseResponse(0).toBytes());
     }
 }
