@@ -7,7 +7,8 @@ package com.vmware.bespin.scheduler.rpc;
 
 public enum RPCID {
     REGISTER_NODE((byte) 1),
-    SCHEDULER((byte) 2);
+    ALLOC((byte) 2),
+    RELEASE((byte) 3);
 
     private final byte id;
 

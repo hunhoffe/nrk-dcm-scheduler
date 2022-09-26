@@ -14,20 +14,19 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 
-public class SchedulerHandler extends RPCHandler {
-    private static final Logger LOG = LogManager.getLogger(SchedulerHandler.class);
+public class AllocHandler extends RPCHandler {
+    private static final Logger LOG = LogManager.getLogger(AllocHandler.class);
     private long requestId = 0;
     private DSLContext conn;
 
-    public SchedulerHandler(final DSLContext conn) {
+    public AllocHandler(final DSLContext conn) {
         this.conn = conn;
     }
 
     @Override
     public RPCMessage handleRPC(final RPCMessage msg) {
         final RPCHeader hdr = msg.hdr();
-        assert (hdr.msgLen == SchedulerRequest.BYTE_LEN);
-        final SchedulerRequest req = new SchedulerRequest(msg.payload());
+        final AllocRequest req = new AllocRequest(msg.payload());
 
         // Add application to application table if new
         conn.insertInto(Scheduler.APPLICATION_TABLE)
@@ -47,7 +46,7 @@ public class SchedulerHandler extends RPCHandler {
                 .execute();
         LOG.info("Processed scheduler request: {}", req);
 
-        hdr.msgLen = SchedulerResponse.BYTE_LEN;
-        return new RPCMessage(hdr, new SchedulerResponse(requestId++).toBytes());
+        hdr.msgLen = AllocResponse.BYTE_LEN;
+        return new RPCMessage(hdr, new AllocResponse(requestId++).toBytes());
     }
 }
