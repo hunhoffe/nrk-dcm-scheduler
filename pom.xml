@@ -23,9 +23,9 @@
     <dependencies>
         <!-- https://mvnrepository.com/artifact/com.google.protobuf/protobuf-java -->
         <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-            <version>3.19.4</version>
+          <groupId>com.google.protobuf</groupId>
+          <artifactId>protobuf-java</artifactId>
+          <version>[3.19.6]</version>
         </dependency>
         <dependency>
             <groupId>com.vmware.dcm</groupId>
