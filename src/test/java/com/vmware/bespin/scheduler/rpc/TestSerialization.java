@@ -67,4 +67,24 @@ public class TestSerialization {
         RegisterNodeResponse res2 = new RegisterNodeResponse(b);
         assert(res2.nodeId == res.nodeId);
     }
+
+    @Test
+    public void testAffinityRequest() {
+        AffinityRequest req = new AffinityRequest((byte) 6, (byte) 7, (byte) 8);
+        byte[] b = req.toBytes();
+        assert(b.length == AffinityRequest.BYTE_LEN);
+        AffinityRequest req2 = new AffinityRequest(b);
+        assert(req2.nodeId == req.nodeId);
+        assert(req2.cores == req.cores);
+        assert(req2.memslices == req.memslices);
+    }
+
+    @Test
+    public void testAffinityResponse() {
+        AffinityResponse res = new AffinityResponse(true);
+        byte[] b = res.toBytes();
+        assert(b.length == AffinityResponse.BYTE_LEN);
+        AffinityResponse res2 = new AffinityResponse(b);
+        assert(res2.requestFulfilled == res.requestFulfilled);
+    }
 }

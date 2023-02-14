@@ -12,6 +12,8 @@ import com.vmware.bespin.scheduler.rpc.RPCID;
 import com.vmware.bespin.scheduler.rpc.RegisterNodeHandler;
 import com.vmware.bespin.scheduler.rpc.AllocHandler;
 import com.vmware.bespin.scheduler.rpc.ReleaseHandler;
+import com.vmware.bespin.scheduler.rpc.AffinityAllocHandler;
+import com.vmware.bespin.scheduler.rpc.AffinityReleaseHandler;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
 import com.vmware.dcm.SolverException;
@@ -121,6 +123,8 @@ public class Scheduler {
                         rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler(conn));
                         rpcServer.register(RPCID.ALLOC, new AllocHandler(conn));
                         rpcServer.register(RPCID.RELEASE, new ReleaseHandler(conn));
+                        rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler(conn));
+                        rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler(conn));
                         LOG.info("Registered handlers");
                         rpcServer.addClient();
                         LOG.info("Added Client");
