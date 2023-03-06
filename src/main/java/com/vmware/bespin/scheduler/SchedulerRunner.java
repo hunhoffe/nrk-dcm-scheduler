@@ -123,13 +123,13 @@ public class SchedulerRunner extends DCMRunner {
         final DSLContext conn = DSL.using("jdbc:h2:mem:");
 
         // initialize database with no resources
-        initDB(conn, 0, 0, 0, 0, 0, false);
+        initDB(conn, 0, 0, 0, 0, "", 0, null, false);
 
         LOG.info("Running solver with parameters: useCapFunction={}, maxReqsPerSolve={}, " +
                         "maxTimePerSolve={}, pollInterval={}",
                 useCapFunction, maxReqsPerSolve, maxTimePerSolve,
                 pollInterval);
-        final Model model = createModel(conn, useCapFunction);
+        final Model model = createModel(conn, useCapFunction, false);
         final Scheduler scheduler = new Scheduler(model, conn, maxReqsPerSolve, maxTimePerSolve, pollInterval, 
             InetAddress.getByName("172.31.0.11"), 6971);
         scheduler.run();

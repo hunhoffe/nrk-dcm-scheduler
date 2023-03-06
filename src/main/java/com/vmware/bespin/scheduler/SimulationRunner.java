@@ -49,11 +49,44 @@ class Simulation {
     static final Placed PLACED_TABLE = Placed.PLACED;
     static final Nodes NODE_TABLE = Nodes.NODES;
 
-    Simulation(final Model model, final DSLContext conn, final int allocsPerStep, final int randomSeed) {
+    Simulation(final Model model, final DSLContext conn, final int allocsPerStep, final Integer randomSeed) {
         this.model = model;
         this.conn = conn;
         this.allocsPerStep = allocsPerStep;
-        this.rand = new Random(randomSeed);
+        if (randomSeed == null) {
+            this.rand = new Random();
+        } else {
+            this.rand = new Random(randomSeed);
+        }
+    }
+
+    public void generateRandomRequest() {
+        final int totalCores = this.coreCapacity();
+        final int totalMemslices = this.memsliceCapacity();
+        final int totalResources = totalCores + totalMemslices;
+
+        // Determine if core or memslice, randomly chosen but weighted by capacity
+        int cores = 0;
+        int memslices = 0;
+        if (rand.nextInt(totalResources) < this.coreCapacity()) {
+            cores += 1;
+        } else {
+            memslices += 1;
+        }
+
+        // Select an application at random
+        final int application = this.chooseRandomApplication();
+        LOG.info("Created random request for application {} ({} cores, {} memslices)", application, cores, memslices);
+
+        // submit the request to the pending table
+        conn.insertInto(PENDING_TABLE)
+            .set(PENDING_TABLE.APPLICATION, application)
+            .set(PENDING_TABLE.CORES, cores)
+            .set(PENDING_TABLE.MEMSLICES, memslices)
+            .set(PENDING_TABLE.STATUS, "PENDING")
+            .set(PENDING_TABLE.CURRENT_NODE, -1)
+            .set(PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
+            .execute();
     }
 
     public void createTurnover() {
@@ -141,10 +174,13 @@ class Simulation {
         conn.execute("delete from placed where cores = 0 and memslices = 0");
     }
 
-    public boolean runModelAndUpdateDB() {
+    public boolean runModelAndUpdateDB(final boolean printTimingData) {
        final Result<? extends Record> results;
+       final long start = System.currentTimeMillis();
+       final long solveFinish;
         try {
             results = model.solve("PENDING");
+            solveFinish = System.currentTimeMillis();
         } catch (ModelException | SolverException e) {
             LOG.error(e);
             return false;
@@ -166,6 +202,10 @@ class Simulation {
                     .execute();
             }
         );
+        final long updateFinish = System.currentTimeMillis();
+        if (printTimingData) {
+            LOG.info("SOLVE_RESULTS: solve={}ms, solve_update={}ms", solveFinish - start, updateFinish - start);
+        }
         return true;
     }
 
@@ -256,35 +296,50 @@ class Simulation {
 }
 
 public class SimulationRunner extends DCMRunner {
-    private static final String NUM_STEPS_OPTION = "steps";
-    private static final int NUM_STEPS_DEFAULT = 10;
+    // Cluster Size
     private static final String NUM_NODES_OPTION = "numNodes";
     private static final int NUM_NODES_DEFAULT = 64;
     private static final String CORES_PER_NODE_OPTION = "coresPerNode";
     private static final int CORES_PER_NODE_DEFAULT = 128;
     private static final String MEMSLICES_PER_NODE_OPTION = "memslicesPerNode";
     private static final int MEMSLICES_PER_NODE_DEFAULT = 256;
+
+    // Cluster utilization & fill method
+    private static final String CLUSTER_UTILIZATION_OPTION = "clusterUtil";
+    private static final int CLUSTER_UTILIZATION_DEFAULT = 50;
+    private static final String CLUSTER_FILL_OPTION = "clusterFill";
+    private static final String CLUSTER_FILL_DEFAULT = "random";
+
+    // Number of processes
     private static final String NUM_APPS_OPTION = "numApps";
     private static final int NUM_APPS_DEFAULT = 20;
+
+    // Batch size
     private static final String ALLOCS_PER_STEP_OPTION = "allocsPerStep";
     private static final int ALLOCS_PER_STEP_DEFAULT = 75;
+
+    // Random seed, used for debugging
     private static final String RANDOM_SEED_OPTION = "randomSeed";
-    private static final int RANDOM_SEED_DEFAULT = 1;
-    private static final String USE_CAP_FUNCTION_OPTION = "useCapFunction";
-    private static final boolean USE_CAP_FUNCTION_DEFAULT = true;
+
+    private static void print_help(final Options options) {
+        final HelpFormatter formatter = new HelpFormatter();
+        formatter.printHelp("java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml " +
+                        "target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
+                options);
+    }
 
     public static void main(final String[] args) throws ClassNotFoundException {
 
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
-        int numSteps = NUM_STEPS_DEFAULT;
         int numNodes = NUM_NODES_DEFAULT;
         int coresPerNode = CORES_PER_NODE_DEFAULT;
         int memslicesPerNode = MEMSLICES_PER_NODE_DEFAULT;
+        int clusterUtil = CLUSTER_UTILIZATION_DEFAULT;
+        String clusterFill = CLUSTER_FILL_DEFAULT;
         int numApps = NUM_APPS_DEFAULT;
         int allocsPerStep = ALLOCS_PER_STEP_DEFAULT;
-        int randomSeed = RANDOM_SEED_DEFAULT;
-        boolean useCapFunction = USE_CAP_FUNCTION_DEFAULT;
+        Integer randomSeed = null;
 
         // create Options object
         final Options options = new Options();
@@ -294,12 +349,8 @@ public class SimulationRunner extends DCMRunner {
                 .hasArg(false)
                 .desc("print help message")
                 .build();
-        final Option numStepsOption = Option.builder("s")
-                .longOpt(NUM_STEPS_OPTION).argName(NUM_STEPS_OPTION)
-                .hasArg(true)
-                .desc(String.format("maximum number of steps to run the simulations.%nDefault: %d", NUM_STEPS_DEFAULT))
-                .type(Integer.class)
-                .build();
+
+        // Set Cluster Size
         final Option numNodesOption = Option.builder("n")
                 .longOpt(NUM_NODES_OPTION).argName(NUM_NODES_OPTION)
                 .hasArg()
@@ -318,117 +369,169 @@ public class SimulationRunner extends DCMRunner {
                 .desc(String.format("number of 2 MB memory slices per node.%nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
                 .type(Integer.class)
                 .build();
+
+        // Cluster utilization & fill method
+        final Option clusterUtilOption = Option.builder("u")
+            .longOpt(CLUSTER_UTILIZATION_OPTION).argName(CLUSTER_UTILIZATION_OPTION)
+            .hasArg()
+            .desc(String.format("cluster utilization as percentage.%nDefault: %d", CLUSTER_UTILIZATION_DEFAULT))
+            .type(Integer.class)
+            .build();
+        final Option clusterFillOption = Option.builder("f")
+            .longOpt(CLUSTER_FILL_OPTION).argName(CLUSTER_FILL_OPTION)
+            .hasArg()
+            .desc(String.format("cluster fill menthod (random or singlestep).%nDefault: %s", 
+                    CLUSTER_FILL_DEFAULT))
+            .type(String.class)
+            .build();
+        
+        // Set number of applications (processes)
         final Option numAppsOption = Option.builder("p")
                 .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
                 .hasArg()
                 .desc(String.format("number of applications running on the cluster.%nDefault: %d", NUM_APPS_DEFAULT))
                 .type(Integer.class)
                 .build();
+        
+        // Set batch size
         final Option allocsPerStepOption = Option.builder("a")
                 .longOpt(ALLOCS_PER_STEP_OPTION).argName(ALLOCS_PER_STEP_OPTION)
                 .hasArg()
-                .desc(String.format("number of new allocations per step.%nDefault: %d", ALLOCS_PER_STEP_DEFAULT))
+                .desc(String.format("number of new allocations per step (batch size).%nDefault: %d", 
+                        ALLOCS_PER_STEP_DEFAULT))
                 .type(Integer.class)
                 .build();
+        
+        // Set random seed
         final Option randomSeedOption = Option.builder("r")
                 .longOpt(RANDOM_SEED_OPTION).argName(RANDOM_SEED_OPTION)
-                .hasArg()
-                .desc(String.format("seed from random.%nDefault: %d", RANDOM_SEED_DEFAULT))
+                .optionalArg(true)
+                .desc(String.format("Optional: seed for random (used for debugging)."))
                 .type(Integer.class)
-                .build();
-        final Option useCapFunctionOption = Option.builder("f")
-                .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
-                .hasArg()
-                .desc(String.format("use capability function vs hand-written constraints.%nDefault: %b",
-                        USE_CAP_FUNCTION_DEFAULT))
-                .type(Boolean.class)
                 .build();
 
         options.addOption(helpOption);
-        options.addOption(numStepsOption);
         options.addOption(numNodesOption);
         options.addOption(coresPerNodeOption);
         options.addOption(memslicesPerNodeOption);
+        options.addOption(clusterUtilOption);
+        options.addOption(clusterFillOption);
         options.addOption(numAppsOption);
         options.addOption(allocsPerStepOption);
         options.addOption(randomSeedOption);
-        options.addOption(useCapFunctionOption);
 
         final CommandLineParser parser = new DefaultParser();
         try {
             final CommandLine cmd = parser.parse(options, args);
             if (cmd.hasOption("h")) {
                 // automatically generate the help statement
-                final HelpFormatter formatter = new HelpFormatter();
-                formatter.printHelp("java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml " +
-                                "target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
-                        options);
+                print_help(options);
                 return;
-            }
-            if (cmd.hasOption(NUM_STEPS_OPTION)) {
-                numSteps = Integer.parseInt(cmd.getOptionValue(NUM_STEPS_OPTION));
             }
             if (cmd.hasOption(NUM_NODES_OPTION)) {
                 numNodes = Integer.parseInt(cmd.getOptionValue(NUM_NODES_OPTION));
+                if (numNodes <= 0) {
+                    LOG.error("Number of nodes must be > 0");
+                    print_help(options);
+                    return;
+                }
             }
             if (cmd.hasOption(CORES_PER_NODE_OPTION)) {
-                coresPerNode = Integer.parseInt(cmd.getOptionValue(CORES_PER_NODE_OPTION));
+                coresPerNode = Integer.parseInt(cmd.getOptionValue(CORES_PER_NODE_OPTION));                
+                if (coresPerNode <= 0) {
+                    LOG.error("Cores per node must be > 0");
+                    print_help(options);
+                    return;
+                }
             }
             if (cmd.hasOption(MEMSLICES_PER_NODE_OPTION)) {
                 memslicesPerNode = Integer.parseInt(cmd.getOptionValue(MEMSLICES_PER_NODE_OPTION));
+                if (memslicesPerNode <= 0) {
+                    LOG.error("Memslices per node must be > 0");
+                    print_help(options);
+                    return;
+                }
+            }
+            if (cmd.hasOption(CLUSTER_UTILIZATION_OPTION)) {
+                clusterUtil = Integer.parseInt(cmd.getOptionValue(CLUSTER_UTILIZATION_OPTION));
+                if (clusterUtil < 0 || clusterUtil > 100) {
+                    LOG.error("Cluster utilization must be in [0, 100] (a valid percentage)");
+                    print_help(options);
+                    return;
+                }
+            }
+            if (cmd.hasOption(CLUSTER_FILL_OPTION)) {
+                clusterFill = cmd.getOptionValue(CLUSTER_FILL_OPTION).toLowerCase();
+                if (!clusterFill.equals("random") && !clusterFill.equals("singlestep")) {
+                    LOG.error("Cluster fill must be 'random'|'singlestep' but is '{}'", clusterFill);
+                    print_help(options);
+                    return;
+                }
             }
             if (cmd.hasOption(NUM_APPS_OPTION)) {
                 numApps = Integer.parseInt(cmd.getOptionValue(NUM_APPS_OPTION));
+                if (numApps <= 0) {
+                    LOG.error("Number of applications must be > 0");
+                    print_help(options);
+                    return;
+                }
             }
             if (cmd.hasOption(ALLOCS_PER_STEP_OPTION)) {
                 allocsPerStep = Integer.parseInt(cmd.getOptionValue(ALLOCS_PER_STEP_OPTION));
+                if (allocsPerStep <= 0) {
+                    LOG.error("Allocations per step (batch size) must be > 0");
+                    print_help(options);
+                    return;
+                }
             }
             if (cmd.hasOption(RANDOM_SEED_OPTION)) {
                 randomSeed = Integer.parseInt(cmd.getOptionValue(RANDOM_SEED_OPTION));
-            }
-            if (cmd.hasOption(USE_CAP_FUNCTION_OPTION)) {
-                useCapFunction = Boolean.parseBoolean(cmd.getOptionValue(USE_CAP_FUNCTION_OPTION));
             }
         } catch (final ParseException ignored) {
             LOG.error("Failed to parse command line");
             return;
         }
 
-        // Create an in-memory database and get a JOOQ connection to it
+        // Create an in-memory database and get a JOOQ connection to it, and fill according to args
         Class.forName("org.h2.Driver");
         final DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.initDB(conn, numNodes, coresPerNode, memslicesPerNode, numApps, randomSeed, true);
-
-        LOG.info("Creating a simulation with parameters: nodes={}, coresPerNode={}, " +
-                        "memSlicesPerNode={} numApps={}, allocsPerStep={}, randomSeed={}, useCapFunction={}",
-                numNodes, coresPerNode, memslicesPerNode, numApps, allocsPerStep, randomSeed, useCapFunction);
-        final Model model = DCMRunner.createModel(conn, useCapFunction);
+        DCMRunner.initDB(conn, numNodes, coresPerNode, memslicesPerNode, clusterUtil, clusterFill, numApps, 
+                randomSeed, true);
+        LOG.info("Simulation setup: nodes={}, coresPerNode={}, memSlicesPerNode={} numApps={}, " +
+                "clusterUtil={}, clusterFill={}, allocsPerStep={}, randomSeed={}",
+                numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
+                randomSeed);
+        final Model model = DCMRunner.createModel(conn, true, false);
         final Simulation sim = new Simulation(model, conn, allocsPerStep, randomSeed);
 
-        int stepCount = 0;
-        for (; stepCount < numSteps; stepCount++) {
-            LOG.info("Simulation step: {}", stepCount);
-
-            // Add/delete memory and/or core requests
-            sim.createTurnover();
-
+        // Step to popular the cluster
+        if (clusterFill.equals("singlestep")) {
             // Solve and update accordingly
-            if (!sim.runModelAndUpdateDB()) {
+            if (!sim.runModelAndUpdateDB(false)) {
                 LOG.warn("No updates from running model???");
-                break;
+                System.exit(-1);
             }
+        }
 
-            // Check for violations
-            if (sim.checkForCapacityViolation()) {
-                LOG.warn("Failed due to capacity violation??");
-                break;
-            }
+        // Add a random request
+        for (int i = 0; i < allocsPerStep; i++) {
+            sim.generateRandomRequest();
+        }
 
-            DCMRunner.printStats(conn);
+        // Solve and update accordingly
+        if (!sim.runModelAndUpdateDB(true)) {
+            LOG.warn("No updates from running model???");
+            System.exit(-1);
+        }
+
+        // Check for violations
+        if (sim.checkForCapacityViolation()) {
+            LOG.warn("Failed due to capacity violation??");
+            System.exit(-1);
         }
 
         // Print final stats
         DCMRunner.printStats(conn);
-        LOG.info("Simulation survived {} steps\n", stepCount + 1);
+        LOG.info("Simulation complete");
     }
 }
