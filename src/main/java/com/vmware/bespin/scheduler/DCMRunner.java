@@ -221,34 +221,48 @@ public abstract class DCMRunner {
                 LOG.info(String.format("Total memslices used: %d/%d, Max memslices per node: %d/%d",
                         totalMemslicesUsed, memsliceAllocs, maxMemslicesUsed, memslicesPerNode));
             } else {
-                // Assume this is SingleStep fill
+                // Assume this is SingleStep fill. Chunk as much as possible (up to 1/2 node capabity)
                 for (final Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
                     final int application = entry.getKey();
                     final int cores = entry.getValue().get(0);
                     final int memslices = entry.getValue().get(1);
 
-                    for (int i = 0; i < cores; i++) {
-                        // submit the request to the pending table
+                    int coresToSubmit = cores;
+                    while (coresToSubmit > 0) {
+                        final int coresInSubmission;
+                        if (coresToSubmit > coresPerNode / 2) {
+                            coresInSubmission = coresPerNode / 2;
+                        } else {
+                            coresInSubmission = coresToSubmit;
+                        }   
                         conn.insertInto(pendingTable)
                             .set(pendingTable.APPLICATION, application)
-                            .set(pendingTable.CORES, 1)
+                            .set(pendingTable.CORES, coresInSubmission)
                             .set(pendingTable.MEMSLICES, 0)
                             .set(pendingTable.STATUS, "PENDING")
                             .set(pendingTable.CURRENT_NODE, -1)
                             .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                             .execute();
+                        coresToSubmit -= coresInSubmission;
                     }
 
-                    for (int i = 0; i < memslices; i++) {
-                        // submit the request to the pending table
+                    int memslicesToSubmit = memslices;
+                    while (memslicesToSubmit > 0) {
+                        final int memslicesInSubmission;
+                        if (memslicesToSubmit > memslicesPerNode / 2) {
+                            memslicesInSubmission = memslicesPerNode / 2;
+                        } else {
+                            memslicesInSubmission = memslicesToSubmit;
+                        }   
                         conn.insertInto(pendingTable)
                             .set(pendingTable.APPLICATION, application)
                             .set(pendingTable.CORES, 0)
-                            .set(pendingTable.MEMSLICES, 1)
+                            .set(pendingTable.MEMSLICES, memslicesInSubmission)
                             .set(pendingTable.STATUS, "PENDING")
                             .set(pendingTable.CURRENT_NODE, -1)
                             .set(pendingTable.CONTROLLABLE__NODE, (Field<Integer>) null)
                             .execute();
+                            memslicesToSubmit -= memslicesInSubmission;
                     }
                 }
             }

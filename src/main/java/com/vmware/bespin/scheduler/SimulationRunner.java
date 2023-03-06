@@ -229,7 +229,9 @@ class Simulation {
             int coreCapacity = 0;
             Result<Record> resultData = this.conn.fetch(allocatedCoresSQL);
             if (null != resultData && resultData.isNotEmpty()) {
-                usedCores += (Long) resultData.get(0).getValue(0);
+                try {
+                    usedCores += (Long) resultData.get(0).getValue(0);
+                } catch (final NullPointerException e) { }
             }
             resultData = this.conn.fetch(coresAvailableSQL);
             if (null != resultData && resultData.isNotEmpty()) {
@@ -245,7 +247,9 @@ class Simulation {
             int memsliceCapacity = 0;
             resultData = this.conn.fetch(allocatedMemslicesSQL);
             if (null != resultData && resultData.isNotEmpty()) {
-                usedMemslices += (Long) resultData.get(0).getValue(0);
+                try {
+                    usedMemslices += (Long) resultData.get(0).getValue(0);
+                } catch (final NullPointerException e) { }
             }
             resultData = this.conn.fetch(memslicesAvailableSQL);
             if (null != resultData && resultData.isNotEmpty()) {
@@ -501,6 +505,7 @@ public class SimulationRunner extends DCMRunner {
                 "clusterUtil={}, clusterFill={}, allocsPerStep={}, randomSeed={}",
                 numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
                 randomSeed);
+
         final Model model = DCMRunner.createModel(conn, true, false);
         final Simulation sim = new Simulation(model, conn, allocsPerStep, randomSeed);
 
