@@ -3,7 +3,7 @@ sudo apt update
 sudo apt install -y openjdk-16-jre openjdk-16-jdk
 
 # Setup for maven install
-mvn_version=${mvn_version:-3.8.6}
+mvn_version=${mvn_version:-3.9.0}
 url="http://www.mirrorservice.org/sites/ftp.apache.org/maven/maven-3/${mvn_version}/binaries/apache-maven-${mvn_version}-bin.tar.gz"
 install_dir="/opt/maven"
 
