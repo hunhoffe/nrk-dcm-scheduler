@@ -8,7 +8,7 @@ import com.vmware.bespin.rpc.RPCHeader;
  */
 
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.DCMRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -28,10 +28,10 @@ public class AffinityReleaseHandler extends RPCHandler {
         final AffinityRequest req = new AffinityRequest(msg.payload());
 
         // Add to the node capacity
-        conn.update(Scheduler.NODE_TABLE)
-            .set(Scheduler.NODE_TABLE.CORES, Scheduler.NODE_TABLE.CORES.add(req.cores))
-            .set(Scheduler.NODE_TABLE.MEMSLICES, Scheduler.NODE_TABLE.MEMSLICES.add(req.memslices))
-            .where(Scheduler.NODE_TABLE.ID.eq((int) req.nodeId))
+        conn.update(DCMRunner.NODE_TABLE)
+            .set(DCMRunner.NODE_TABLE.CORES, DCMRunner.NODE_TABLE.CORES.add(req.cores))
+            .set(DCMRunner.NODE_TABLE.MEMSLICES, DCMRunner.NODE_TABLE.MEMSLICES.add(req.memslices))
+            .where(DCMRunner.NODE_TABLE.ID.eq((int) req.nodeId))
             .execute();
 
         LOG.info("Processed scheduler affinity release request: {}", req); 

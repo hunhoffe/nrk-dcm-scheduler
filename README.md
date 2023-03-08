@@ -39,7 +39,7 @@ Run with a ```-h``` to see parameters and usage instructions.
 ### Run a Simulation:
 Run the jar with:
 ```bash
-java -Dlog4j.configurationFile=src/main/resources/log4j2.xml -cp scheduler-<version>-jar-with-dependencies.jar com.vmware.bespin.scheduler.SimulationRunner [OPTIONS]
+java -Dlog4j.configurationFile=src/main/resources/log4j2.xml -cp scheduler-<version>-jar-with-dependencies.jar com.vmware.bespin.scheduler.DCMSimulation [OPTIONS]
 ```
 Run with a ```-h``` to see usage message.
 

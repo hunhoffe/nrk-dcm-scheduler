@@ -8,7 +8,7 @@ package com.vmware.bespin.scheduler.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.DCMRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -29,10 +29,10 @@ public class RegisterNodeHandler extends RPCHandler {
         assert (hdr.msgLen == RegisterNodeRequest.BYTE_LEN);
         final RegisterNodeRequest req = new RegisterNodeRequest(msg.payload());
 
-        conn.insertInto(Scheduler.NODE_TABLE)
-                .set(Scheduler.NODE_TABLE.ID, requestId)
-                .set(Scheduler.NODE_TABLE.CORES, (int) req.cores)
-                .set(Scheduler.NODE_TABLE.MEMSLICES, (int) req.memslices)
+        conn.insertInto(DCMRunner.NODE_TABLE)
+                .set(DCMRunner.NODE_TABLE.ID, requestId)
+                .set(DCMRunner.NODE_TABLE.CORES, (int) req.cores)
+                .set(DCMRunner.NODE_TABLE.MEMSLICES, (int) req.memslices)
                 .execute();
         LOG.info("Handled register node request: {}, assigned id {}", req, requestId);
 

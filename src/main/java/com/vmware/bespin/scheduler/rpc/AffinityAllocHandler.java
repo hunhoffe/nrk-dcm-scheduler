@@ -8,7 +8,7 @@ package com.vmware.bespin.scheduler.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.DCMRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -60,10 +60,10 @@ public class AffinityAllocHandler extends RPCHandler {
                 // There is enough memory to fulfill the alloc request!
                 if (memslices >= usedMemslices + req.memslices && cores >= usedCores + req.cores) {
                     // Subtract from the overall node resource
-                    conn.update(Scheduler.NODE_TABLE)
-                        .set(Scheduler.NODE_TABLE.MEMSLICES, Scheduler.NODE_TABLE.MEMSLICES.sub(req.memslices))
-                        .set(Scheduler.NODE_TABLE.CORES, Scheduler.NODE_TABLE.CORES.sub(req.cores))
-                        .where(Scheduler.NODE_TABLE.ID.eq((int) req.nodeId))
+                    conn.update(DCMRunner.NODE_TABLE)
+                        .set(DCMRunner.NODE_TABLE.MEMSLICES, DCMRunner.NODE_TABLE.MEMSLICES.sub(req.memslices))
+                        .set(DCMRunner.NODE_TABLE.CORES, DCMRunner.NODE_TABLE.CORES.sub(req.cores))
+                        .where(DCMRunner.NODE_TABLE.ID.eq((int) req.nodeId))
                         .execute();
                     requestFulfilled = true;
                 }
