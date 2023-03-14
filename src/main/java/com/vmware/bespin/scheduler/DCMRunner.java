@@ -21,6 +21,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Result;
+import static org.jooq.impl.DSL.and;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -41,9 +42,6 @@ public class DCMRunner {
 
     protected Logger LOG = LogManager.getLogger(DCMRunner.class);
     protected final DSLContext conn;
-    protected int numNodes = 0;
-    protected int coresPerNode = 0;
-    protected int memslicesPerNode = 0;
     protected int numApps = 0;
     protected final RandomDataGenerator rand;
     protected final Model model;
@@ -64,8 +62,8 @@ public class DCMRunner {
      *                            and load balancing constraints
      * @param usePrintDiagnostics set DCM to output print diagnostics
      */
-    public DCMRunner(final DSLContext conn, final int numNodes, final int coresPerNode,
-            final int memslicesPerNode, final int numApps, final Integer randomSeed,
+    public DCMRunner(final DSLContext conn, final long numNodes, final long coresPerNode,
+            final long memslicesPerNode, final long numApps, final Integer randomSeed,
             final boolean useCapFunc, final boolean usePrintDiagnostics) {
 
         // Argument validation
@@ -80,10 +78,6 @@ public class DCMRunner {
             assert coresPerNode == 0;
             assert memslicesPerNode == 0;
         }
-
-        // Set cores and memslice per node
-        this.coresPerNode = coresPerNode;
-        this.memslicesPerNode = memslicesPerNode;
 
         // Initialize internal state
         this.conn = conn;
@@ -204,21 +198,36 @@ public class DCMRunner {
      * @param cores     the core id
      * @param memslices the memslice id
      */
-    protected void addNode(final int id, final int cores, final int memslices) {
-        if (numNodes == 0) {
-            coresPerNode = cores;
-            memslicesPerNode = memslices;
-        } else {
-            assert cores == coresPerNode;
-            assert memslices == memslicesPerNode;
-        }
-
-        numNodes += 1;
+    public void addNode(final long id, final long cores, final long memslices) {
         conn.insertInto(NODE_TABLE)
-                .set(NODE_TABLE.ID, id)
-                .set(NODE_TABLE.CORES, cores)
-                .set(NODE_TABLE.MEMSLICES, memslices)
+                .set(NODE_TABLE.ID, (int) id)
+                .set(NODE_TABLE.CORES, (int) cores)
+                .set(NODE_TABLE.MEMSLICES, (int) memslices)
                 .execute();
+    }
+
+    /**
+     * TODO: test this.
+     * Add a node to the cluster state
+     * 
+     * @param id        the node id
+     * @param cores     the core id
+     * @param memslices the memslice id
+     */
+    public void updateNode(final long id, final long cores, final long memslices, final boolean isAdd) {
+        if (isAdd) {
+           conn.update(NODE_TABLE)
+                .set(NODE_TABLE.MEMSLICES, NODE_TABLE.MEMSLICES.plus(memslices))
+                .set(NODE_TABLE.CORES, NODE_TABLE.CORES.plus(cores))
+                .where(NODE_TABLE.ID.eq((int) id))
+                .execute();
+        } else {
+            conn.update(NODE_TABLE)
+                .set(NODE_TABLE.MEMSLICES, NODE_TABLE.MEMSLICES.sub(memslices))
+                .set(NODE_TABLE.CORES, NODE_TABLE.CORES.sub(cores))
+                .where(NODE_TABLE.ID.eq((int) id))
+                .execute();
+        }
     }
 
     /**
@@ -226,20 +235,12 @@ public class DCMRunner {
      * 
      * @param id the application id
      */
-    protected void addApplication(final int id) {
+    public void addApplication(final long id) {
         numApps += 1;
         conn.insertInto(APP_TABLE)
-                .set(APP_TABLE.ID, id)
+                .set(APP_TABLE.ID, (int) id)
+                .onDuplicateKeyIgnore()
                 .execute();
-    }
-
-    /**
-     * The number of nodes based on DCMRunner configuration
-     * 
-     * @return numNodes the number of nodes
-     */
-    protected int numNodes() {
-        return numNodes;
     }
 
     /**
@@ -247,10 +248,10 @@ public class DCMRunner {
      * 
      * @return numNodes the number of nodes
      */
-    protected int actualNumNodes() {
+    protected long numNodes() {
         final String appCount = "select count(id) from nodes";
         try {
-            return ((Long) this.conn.fetch(appCount).get(0).getValue(0)).intValue();
+            return (Long) this.conn.fetch(appCount).get(0).getValue(0);
         } catch (final NullPointerException e) {
             // If there are no nodes
             return 0;
@@ -258,23 +259,14 @@ public class DCMRunner {
     }
 
     /**
-     * The number of applications based on DCMRunner configuration
-     * 
-     * @return numApps the number of applications
-     */
-    protected int numApps() {
-        return numApps;
-    }
-
-    /**
      * The number of applications based on database state
      * 
      * @return numApps the number of applicaitons
      */
-    protected int actualNumApps() {
+    protected long numApps() {
         final String appCount = "select count(id) from applications";
         try {
-            return ((Long) this.conn.fetch(appCount).get(0).getValue(0)).intValue();
+            return (Long) this.conn.fetch(appCount).get(0).getValue(0);
         } catch (final NullPointerException e) {
             // If there are no nodes
             return 0;
@@ -287,14 +279,14 @@ public class DCMRunner {
      * @param application the application to check for core usage
      * @return usedCores the number of cores currently allocated for an application
      */
-    protected int usedCoresForApplication(final int application) {
+    protected long usedCoresForApplication(final long application) {
         final String sql = String.format("select sum(placed.cores) from placed where application = %d", 
                 application);
-        int coresUsed = 0;
+        long coresUsed = 0;
         final Result<Record> coreResults = conn.fetch(sql);
         if (null != coreResults && coreResults.isNotEmpty()) {
             if (null != coreResults.get(0).getValue(0)) {
-                coresUsed = ((Long) coreResults.get(0).getValue(0)).intValue();
+                coresUsed = (Long) coreResults.get(0).getValue(0);
             }
         }
         return coresUsed;
@@ -306,14 +298,14 @@ public class DCMRunner {
      * @param application the application to check for memslice usage
      * @return usedMemslices the number of memslices currently allocated for an application
      */
-    protected int usedMemslicesForApplication(final int application) {
+    protected long usedMemslicesForApplication(final long application) {
         final String sql = String.format("select sum(placed.memslices) from placed where application = %d", 
                 application);
-        int memslicesUsed = 0;
+        long memslicesUsed = 0;
         final Result<Record> memsliceResults = conn.fetch(sql);
         if (null != memsliceResults && memsliceResults.isNotEmpty()) {
             if (null != memsliceResults.get(0).getValue(0)) {
-                memslicesUsed = ((Long) memsliceResults.get(0).getValue(0)).intValue();
+                memslicesUsed = (Long) memsliceResults.get(0).getValue(0);
             }
         }
         return memslicesUsed;
@@ -325,14 +317,14 @@ public class DCMRunner {
      * @param application the application to check for node usage
      * @return nodesUsed the number of nodes an application is running on
      */
-    protected int nodesForApplication(final int application) {
+    protected long nodesForApplication(final long application) {
         final String sql = String.format("select count(placed.node) from placed where application = %d",
                 application);
-        int nodesUsed = 0;
+        long nodesUsed = 0;
         final Result<Record> nodeResults = conn.fetch(sql);
         if (null != nodeResults && nodeResults.isNotEmpty()) {
             if (null != nodeResults.get(0).getValue(0)) {
-                nodesUsed = ((Long) nodeResults.get(0).getValue(0)).intValue();
+                nodesUsed = (Long) nodeResults.get(0).getValue(0);
             }
         }
         return nodesUsed;
@@ -343,9 +335,9 @@ public class DCMRunner {
      * 
      * @return usedCores the aggregate number of cores currently allocated
      */
-    protected int usedCores() {
+    protected long usedCores() {
         final String allocatedCoresSQL = "select sum(cores) from placed";
-        Long usedCores = 0L;
+        long usedCores = 0L;
         final Result<Record> coreRequest = conn.fetch(allocatedCoresSQL);
         if (null != coreRequest && coreRequest.isNotEmpty()) {
             try {
@@ -353,7 +345,7 @@ public class DCMRunner {
             } catch (final NullPointerException e) {
             }
         }
-        return usedCores.intValue();
+        return usedCores;
     }
 
     /**
@@ -362,26 +354,17 @@ public class DCMRunner {
      * @param node the node to check for core usage
      * @return usedCores the number of cores currently allocated on a node
      */
-    protected int usedCoresForNode(final int node) {
+    public long usedCoresForNode(final long node) {
         // Check if there are any cores available
         final String sql = String.format("select sum(placed.cores) from placed where node = %d", node);
-        int coresUsed = 0;
+        long coresUsed = 0L;
         final Result<Record> coreResults = conn.fetch(sql);
         if (null != coreResults && coreResults.isNotEmpty()) {
             if (null != coreResults.get(0).getValue(0)) {
-                coresUsed = ((Long) coreResults.get(0).getValue(0)).intValue();
+                coresUsed = (Long) coreResults.get(0).getValue(0);
             }
         }
         return coresUsed;
-    }
-
-    /**
-     * The total number of cores in the cluster based on DCMRunner configuration
-     * 
-     * @return numCores the number of cores
-     */
-    protected int coreCapacity() {
-        return coresPerNode * numNodes;
     }
 
     /**
@@ -389,10 +372,10 @@ public class DCMRunner {
      * 
      * @return numCores the number of cores
      */
-    protected int actualCoreCapacity() {
+    protected long coreCapacity() {
         final String totalCores = "select sum(cores) from nodes";
         try {
-            return ((Long) this.conn.fetch(totalCores).get(0).getValue(0)).intValue();
+            return (Long) this.conn.fetch(totalCores).get(0).getValue(0);
         } catch (final NullPointerException e) {
             // If there are no nodes
             return 0;
@@ -404,10 +387,10 @@ public class DCMRunner {
      * 
      * @return numCores the number of cores
      */
-    protected int actualCoreCapacityForNode(final int node) {
+    public long coreCapacityForNode(final long node) {
         final String coreCapacitySql = String.format("select cores from nodes where id = %d", node);
         try {
-            return (int) this.conn.fetch(coreCapacitySql).get(0).getValue(0);
+            return ((Integer) this.conn.fetch(coreCapacitySql).get(0).getValue(0)).longValue();
         } catch (final NullPointerException e) {
             // If there are no nodes
             return 0;
@@ -419,7 +402,7 @@ public class DCMRunner {
      * 
      * @return usedMemslices the aggregate number of memslices currently allocated
      */
-    protected int usedMemslices() {
+    protected long usedMemslices() {
         final String allocatedMemslicesSQL = "select sum(memslices) from placed";
         Long usedMemslices = 0L;
         final Result<Record> memsliceRequest = conn.fetch(allocatedMemslicesSQL);
@@ -429,7 +412,7 @@ public class DCMRunner {
             } catch (final NullPointerException e) {
             }
         }
-        return usedMemslices.intValue();
+        return usedMemslices;
     }
 
     /**
@@ -438,26 +421,17 @@ public class DCMRunner {
      * @param node the node to check for memslice usage
      * @return usedMemslices the number of memslices currently allocated on a node
      */
-    protected int usedMemslicesForNode(final int node) {
+    public long usedMemslicesForNode(final long node) {
         // Check if there are any cores available
         final String sql = String.format("select sum(placed.memslices) from placed where node = %d", node);
-        int memslicesUsed = 0;
+        long memslicesUsed = 0L;
         final Result<Record> memsliceResults = conn.fetch(sql);
         if (null != memsliceResults && memsliceResults.isNotEmpty()) {
             if (null != memsliceResults.get(0).getValue(0)) {
-                memslicesUsed = ((Long) memsliceResults.get(0).getValue(0)).intValue();
+                memslicesUsed = (Long) memsliceResults.get(0).getValue(0);
             }
         }
         return memslicesUsed;
-    }
-
-    /**
-     * The total number of memslices in the cluster based on DCMRunner configuration
-     * 
-     * @return numMemslices the number of memslices
-     */
-    protected int memsliceCapacity() {
-        return memslicesPerNode * numNodes;
     }
 
     /**
@@ -465,13 +439,13 @@ public class DCMRunner {
      * 
      * @return numMemslices the number of memslices
      */
-    protected int actualMemsliceCapacity() {
+    protected long memsliceCapacity() {
         final String totalMemslices = "select sum(memslices) from nodes";
         try {
-            return ((Long) this.conn.fetch(totalMemslices).get(0).getValue(0)).intValue();
+            return (long) this.conn.fetch(totalMemslices).get(0).getValue(0);
         } catch (final NullPointerException e) {
             // If no nodes
-            return 0;
+            return 0L;
         }
     }
 
@@ -480,13 +454,13 @@ public class DCMRunner {
      * 
      * @return numMemslices the number of memslices
      */
-    protected int actualMemsliceCapacityForNode(final int node) {
+    public long memsliceCapacityForNode(final long node) {
         final String memsliceCapacitySql = String.format("select memslices from nodes where id = %d", node);
         try {
-            return (int) this.conn.fetch(memsliceCapacitySql).get(0).getValue(0);
+            return ((Integer) this.conn.fetch(memsliceCapacitySql).get(0).getValue(0)).longValue();
         } catch (final NullPointerException e) {
             // If there are no nodes
-            return 0;
+            return 0L;
         }
     }
 
@@ -495,10 +469,10 @@ public class DCMRunner {
      * 
      * @return application the application selected
      */
-    protected int chooseRandomApplication() {
+    protected long chooseRandomApplication() {
         final String applicationIds = "select id from applications";
         final Result<Record> results = conn.fetch(applicationIds);
-        return (int) results.get(rand.nextInt(0, results.size() - 1)).getValue(0);
+        return ((Integer) results.get(rand.nextInt(0, results.size() - 1)).getValue(0)).longValue();
     }
 
     /**
@@ -525,9 +499,9 @@ public class DCMRunner {
      * @return numCores the number of cores that must be allocated to read the
      *         cluster utilization
      */
-    protected int coresForUtil(final int clusterUtil) {
+    protected long coresForUtil(final int clusterUtil) {
         // Determine the number of cores to alloc in order to meet utilization
-        return (int) Math.ceil(((float) (numNodes * coresPerNode * clusterUtil)) / 100.0);
+        return (long) Math.ceil(((float) (coreCapacity() * clusterUtil)) / 100.0);
     }
 
     /**
@@ -538,9 +512,9 @@ public class DCMRunner {
      * @return numMemslices the number of memslices that must be allocated to read
      *         the cluster utilization
      */
-    protected int memslicesForUtil(final int clusterUtil) {
+    protected long memslicesForUtil(final int clusterUtil) {
         // Determine the number of memslices to alloc in order to meet utilization
-        return (int) Math.ceil(((float) (numNodes * memslicesPerNode * clusterUtil)) / 100.0);
+        return (long) Math.ceil(((float) (memsliceCapacity() * clusterUtil)) / 100.0);
     }
 
     /**
@@ -553,22 +527,22 @@ public class DCMRunner {
      * @return allocMap a map containing a number of cores and memslices for each
      *         application
      */
-    protected HashMap<Integer, List<Integer>> generateAllocMap(final int coreAllocs,
-            final int memsliceAllocs) {
+    protected HashMap<Long, List<Long>> generateAllocMap(final long coreAllocs,
+            final long memsliceAllocs) {
         // Format of key=application number, values=[num_cores, num_memslices]
-        final HashMap<Integer, List<Integer>> appAllocMap = new HashMap<>();
+        final HashMap<Long, List<Long>> appAllocMap = new HashMap<>();
 
         // Assign cores to applications
-        for (int i = 0; i < coreAllocs; i++) {
-            final int application = rand.nextInt(1, numApps);
-            final List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+        for (long i = 0; i < coreAllocs; i++) {
+            final long application = rand.nextInt(1, numApps);
+            final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
         }
 
         // Assign memslices to applications
-        for (int i = 0; i < memsliceAllocs; i++) {
-            final int application = rand.nextInt(1, numApps);
-            final List<Integer> key = appAllocMap.getOrDefault(application, List.of(0, 0));
+        for (long i = 0; i < memsliceAllocs; i++) {
+            final long application = rand.nextInt(1, numApps);
+            final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
         }
         return appAllocMap;
@@ -579,9 +553,29 @@ public class DCMRunner {
      * 
      * @return pendingRequests the number of pending requests
      */
-    protected int getNumPendingRequests() {
+    protected long getNumPendingRequests() {
         final String numRequests = "select count(1) from pending";
-        return ((Long) this.conn.fetch(numRequests).get(0).getValue(0)).intValue();
+        return (Long) this.conn.fetch(numRequests).get(0).getValue(0);
+    }
+
+    /**
+     * The number of requests in the pending table.
+     * 
+     * @return pendingRequests the number of pending requests
+     */
+    protected long[] getPendingRequestIDs() {
+        final String sql = "select id from pending";
+        long[] pendingIds = {};
+        final Result<Record> pendingIdResults = conn.fetch(sql);
+        if (null != pendingIdResults && pendingIdResults.isNotEmpty()) {
+            pendingIds = new long[pendingIdResults.size()];
+            int counter = 0;
+            for (final Record r: pendingIdResults) {
+                pendingIds[counter] = (Long) r.getValue(0);
+                counter++;
+            }
+        }
+        return pendingIds;
     }
 
     /**
@@ -591,20 +585,20 @@ public class DCMRunner {
      * Choose an application at uniform random.
      */
     public void generateRandomRequest() {
-        final int totalResources = this.coreCapacity() + this.memsliceCapacity();
+        final long totalResources = this.coreCapacity() + this.memsliceCapacity();
 
         // Select an application at random
-        final int application = this.chooseRandomApplication();
+        final long application = this.chooseRandomApplication();
 
         // Determine if core or memslice, randomly chosen but weighted by capacity
         int cores = 0;
         int memslices = 0;
-        if (rand.nextInt(1, totalResources) < this.coreCapacity()) {
+        if (rand.nextLong(1, totalResources) < this.coreCapacity()) {
             cores = 1;
         } else {
             memslices = 1;
         }
-        generateRequest(cores, memslices, application);
+        generateRequest(null, cores, memslices, application);
     }
 
     /**
@@ -614,18 +608,31 @@ public class DCMRunner {
      * @param memslices   the number of memslices to request
      * @param application the application that is requesting the resource(s)
      */
-    protected void generateRequest(final int cores, final int memslices, final int application) {
-        LOG.info("Created request for application {} ({} cores, {} memslices)", application, cores, memslices);
+    public void generateRequest(final Long id, final long cores, final long memslices, final long application) {
+        LOG.info("Created request (id={}) for application {} ({} cores, {} memslices)", 
+                id, application, cores, memslices);
 
         // submit the request to the pending table
-        conn.insertInto(PENDING_TABLE)
-                .set(PENDING_TABLE.APPLICATION, application)
-                .set(PENDING_TABLE.CORES, cores)
-                .set(PENDING_TABLE.MEMSLICES, memslices)
+        if (id != null) {
+            conn.insertInto(PENDING_TABLE)
+                .set(PENDING_TABLE.ID, (long) id)
+                .set(PENDING_TABLE.APPLICATION, (int) application)
+                .set(PENDING_TABLE.CORES, (int) cores)
+                .set(PENDING_TABLE.MEMSLICES, (int) memslices)
                 .set(PENDING_TABLE.STATUS, "PENDING")
                 .set(PENDING_TABLE.CURRENT_NODE, -1)
                 .set(PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
                 .execute();
+        } else {
+            conn.insertInto(PENDING_TABLE)
+                .set(PENDING_TABLE.APPLICATION, (int) application)
+                .set(PENDING_TABLE.CORES, (int) cores)
+                .set(PENDING_TABLE.MEMSLICES, (int) memslices)
+                .set(PENDING_TABLE.STATUS, "PENDING")
+                .set(PENDING_TABLE.CURRENT_NODE, -1)
+                .set(PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
+                .execute();
+        }
     }
 
     /**
@@ -636,14 +643,14 @@ public class DCMRunner {
      * @param cores       the number of cores allocated
      * @param memslices   the number of memslices allocated
      */
-    protected void updateAllocation(final int node, final int application, final int cores, final int memslices) {
+    protected void updateAllocation(final long node, final long application, final long cores, final long memslices) {
         if (memslices == 0 && cores == 0) {
             LOG.warn("Cannot update allocation, nothing to do");
         } else if (memslices == 0) {
             conn.insertInto(PLACED_TABLE,
                     PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
                     PLACED_TABLE.MEMSLICES)
-                    .values(application, node, cores, memslices)
+                    .values((int) application, (int) node, (int) cores, (int) memslices)
                     .onDuplicateKeyUpdate()
                     .set(PLACED_TABLE.CORES, PLACED_TABLE.CORES.plus(cores))
                     .execute();
@@ -651,7 +658,7 @@ public class DCMRunner {
             conn.insertInto(PLACED_TABLE,
                     PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
                     PLACED_TABLE.MEMSLICES)
-                    .values(application, node, cores, memslices)
+                    .values((int) application, (int) node, (int) cores, (int) memslices)
                     .onDuplicateKeyUpdate()
                     .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus(memslices))
                     .execute();
@@ -659,11 +666,32 @@ public class DCMRunner {
             conn.insertInto(PLACED_TABLE,
                     PLACED_TABLE.APPLICATION, PLACED_TABLE.NODE, PLACED_TABLE.CORES,
                     PLACED_TABLE.MEMSLICES)
-                    .values(application, node, cores, memslices)
+                    .values((int) application, (int) node, (int) cores, (int) memslices)
                     .onDuplicateKeyUpdate()
                     .set(PLACED_TABLE.CORES, PLACED_TABLE.CORES.plus(cores))
                     .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.plus(memslices))
                     .execute();
+        }
+    }
+
+    /**
+     * Release allocation (e.g., mark resources as unused)
+     * TODO: test this.
+     * 
+     * @param node        the node that formerly owned the resources
+     * @param application the application the resources were formerly allocated to
+     * @param cores       the number of cores to release
+     * @param memslices   the number of memslices to release
+     */
+    public void releaseAllocation(final long node, final long application, final long cores, final long memslices) {
+        if (memslices == 0 && cores == 0) {
+            LOG.warn("Cannot reduce allocation, nothing to do");
+        } else {
+            conn.update(PLACED_TABLE)
+                .set(PLACED_TABLE.MEMSLICES, PLACED_TABLE.MEMSLICES.sub((int) memslices))
+                .set(PLACED_TABLE.CORES, PLACED_TABLE.CORES.sub((int) cores))
+                .where(and(PLACED_TABLE.NODE.eq((int) node), PLACED_TABLE.APPLICATION.eq((int) application)))
+                .execute();
         }
     }
 
@@ -717,16 +745,16 @@ public class DCMRunner {
     public boolean checkForCapacityViolation() {
         // Check total capacity
         // TODO: could make this more efficient by using unallocated view
-        final boolean totalCoreCheck = actualCoreCapacity() >= usedCores();
-        final boolean totalMemsliceCheck = actualMemsliceCapacity() >= usedCores();
+        final boolean totalCoreCheck = coreCapacity() >= usedCores();
+        final boolean totalMemsliceCheck = memsliceCapacity() >= usedCores();
 
         boolean nodeCoreCheck = true;
         boolean nodeMemsliceCheck = true;
 
-        for (int node = 1; node <= numNodes; node++) {
-            nodeCoreCheck = nodeCoreCheck && (actualCoreCapacityForNode(node) >= usedCoresForNode(node));
+        for (int node = 1; node <= numNodes(); node++) {
+            nodeCoreCheck = nodeCoreCheck && (coreCapacityForNode(node) >= usedCoresForNode(node));
             nodeMemsliceCheck = nodeMemsliceCheck &&
-                    (actualMemsliceCapacityForNode(node) >= usedMemslicesForNode(node));
+                    (memsliceCapacityForNode(node) >= usedMemslicesForNode(node));
         }
 
         return !(totalCoreCheck && totalMemsliceCheck && nodeCoreCheck && nodeMemsliceCheck);
@@ -740,7 +768,7 @@ public class DCMRunner {
      * @param coreAllocs     the exepcted number of core allocations
      * @param memsliceAllocs the expected number of memslice allocations
      */
-    protected void checkFill(final int coreAllocs, final int memsliceAllocs) {
+    protected void checkFill(final long coreAllocs, final long memsliceAllocs) {
         assert (usedCores() == coreAllocs);
         assert (usedMemslices() == memsliceAllocs);
         assert (!checkForCapacityViolation());
@@ -758,28 +786,29 @@ public class DCMRunner {
         assert usedMemslices() == 0;
 
         // Determine the number of both resources to allocate based on clusterUtil
-        final int coreAllocs = coresForUtil(clusterUtil);
-        final int memsliceAllocs = memslicesForUtil(clusterUtil);
+        final long coreAllocs = coresForUtil(clusterUtil);
+        final long memsliceAllocs = memslicesForUtil(clusterUtil);
+        final long numNodes = numNodes();
 
         // Format of key=application number, values=[num_cores, num_memslices]
-        final HashMap<Integer, List<Integer>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
+        final HashMap<Long, List<Long>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
 
         // Randomly assign application allocs to nodes
-        for (final Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
-            final int application = entry.getKey();
-            final int cores = entry.getValue().get(0);
-            final int memslices = entry.getValue().get(1);
+        for (final Map.Entry<Long, List<Long>> entry : appAllocMap.entrySet()) {
+            final long application = entry.getKey();
+            final long cores = entry.getValue().get(0);
+            final long memslices = entry.getValue().get(1);
 
             // Assign cores
             for (int i = 0; i < cores; i++) {
                 boolean done = false;
                 while (!done) {
                     // Choose a random node
-                    final int node = rand.nextInt(1, numNodes);
+                    final long node = rand.nextLong(1, numNodes);
 
                     // If there is a core available, allocate it.
-                    if (actualCoreCapacityForNode(node) - usedCoresForNode(node) > 0) {
-                        updateAllocation(node, application, 1, 0);
+                    if (coreCapacityForNode(node) - usedCoresForNode(node) > 0) {
+                        updateAllocation(node, application, 1L, 0L);
                         done = true;
                     }
                 }
@@ -790,11 +819,11 @@ public class DCMRunner {
                 boolean done = false;
                 while (!done) {
                     // Choose a random node
-                    final int node = rand.nextInt(1, numNodes);
+                    final long node = rand.nextLong(1, numNodes);
 
                     // If there is a core available, allocate it.
-                    if (actualMemsliceCapacityForNode(node) - usedMemslicesForNode(node) > 0) {
-                        updateAllocation(node, application, 0, 1);
+                    if (memsliceCapacityForNode(node) - usedMemslicesForNode(node) > 0) {
+                        updateAllocation(node, application, 0L, 1L);
                         done = true;
                     }
                 }
@@ -818,42 +847,58 @@ public class DCMRunner {
         assert usedMemslices() == 0;
 
         // Determine the number of both resources to allocate based on clusterUtil
-        final int coreAllocs = coresForUtil(clusterUtil);
-        final int memsliceAllocs = memslicesForUtil(clusterUtil);
+        final long coreAllocs = coresForUtil(clusterUtil);
+        final long memsliceAllocs = memslicesForUtil(clusterUtil);
 
         // Format of key=application number, values=[num_cores, num_memslices]
-        final HashMap<Integer, List<Integer>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
+        final HashMap<Long, List<Long>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
+
+        final long numNodes = numNodes();
+        long minCoresPerNode = coreCapacityForNode(1L);
+        for (long i = 2; i <= numNodes; i++) {
+            final long nodeCapacity = coreCapacityForNode(i);
+            if (nodeCapacity < minCoresPerNode) {
+                minCoresPerNode = nodeCapacity;
+            }
+        }
+        long minMemslicesPerNode = memsliceCapacityForNode(1L);
+        for (long i = 2; i <= numNodes; i++) {
+            final long nodeCapacity = memsliceCapacityForNode(i);
+            if (nodeCapacity < minMemslicesPerNode) {
+                minMemslicesPerNode = nodeCapacity;
+            }
+        }
 
         // Assume this is SingleStep fill. Chunk as much as possible (up to 1/2 node
         // capabity)
-        for (final Map.Entry<Integer, List<Integer>> entry : appAllocMap.entrySet()) {
-            final int application = entry.getKey();
-            final int cores = entry.getValue().get(0);
-            final int memslices = entry.getValue().get(1);
+        for (final Map.Entry<Long, List<Long>> entry : appAllocMap.entrySet()) {
+            final long application = entry.getKey();
+            final long cores = entry.getValue().get(0);
+            final long memslices = entry.getValue().get(1);
 
             // Generate core requests
-            int totalCoresToRequest = cores;
+            long totalCoresToRequest = cores;
             while (totalCoresToRequest > 0) {
-                final int coresInRequest;
-                if (totalCoresToRequest > coresPerNode / 2) {
-                    coresInRequest = coresPerNode / 2;
+                final long coresInRequest;
+                if (totalCoresToRequest > minCoresPerNode / 2) {
+                    coresInRequest = minCoresPerNode / 2;
                 } else {
                     coresInRequest = totalCoresToRequest;
                 }
-                generateRequest(coresInRequest, 0, application);
+                generateRequest(null, coresInRequest, 0, application);
                 totalCoresToRequest -= coresInRequest;
             }
 
             // Generate memslices requests
-            int totalMemslicesToRequest = memslices;
+            long totalMemslicesToRequest = memslices;
             while (totalMemslicesToRequest > 0) {
-                final int memslicesInRequest;
-                if (totalMemslicesToRequest > memslicesPerNode / 2) {
-                    memslicesInRequest = memslicesPerNode / 2;
+                final long memslicesInRequest;
+                if (totalMemslicesToRequest > minMemslicesPerNode / 2) {
+                    memslicesInRequest = minMemslicesPerNode / 2;
                 } else {
                     memslicesInRequest = totalMemslicesToRequest;
                 }
-                generateRequest(0, memslicesInRequest, application);
+                generateRequest(null, 0, memslicesInRequest, application);
                 totalMemslicesToRequest -= memslicesInRequest;
             }
         }
@@ -878,8 +923,8 @@ public class DCMRunner {
         assert usedMemslices() == 0;
         
         // Determine the number of both resources to allocate based on clusterUtil
-        final int targetCoreAllocs = coresForUtil(clusterUtil);
-        final int targetMemsliceAllocs = memslicesForUtil(clusterUtil);
+        final long targetCoreAllocs = coresForUtil(clusterUtil);
+        final long targetMemsliceAllocs = memslicesForUtil(clusterUtil);
 
         final double perAppCoreMean = coreMean / numApps;
         final double perAppMemsliceMean = memsliceMean / numApps;
@@ -891,13 +936,13 @@ public class DCMRunner {
             // Generate requests for cores and memslices.
             // TODO: not sure if should give all applications a chance or okay to just give
             // some?
-            for (int i = 1; i <= numApps &&
+            for (long i = 1; i <= numApps &&
                     (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs); i++) {
 
                 if (allocatedCores < targetCoreAllocs) {
                     final int coresToAlloc = (int) rand.nextPoisson(perAppCoreMean);
                     for (int j = 0; j < coresToAlloc; j++) {
-                        generateRequest(1, 0, i);
+                        generateRequest(null, 1L, 0L, i);
                     }
                     allocatedCores += coresToAlloc;
                 }
@@ -905,7 +950,7 @@ public class DCMRunner {
                 if (allocatedMemslices < targetMemsliceAllocs) {
                     final int memslicesToAlloc = (int) rand.nextPoisson(perAppMemsliceMean);
                     for (int j = 0; j < memslicesToAlloc; j++) {
-                        generateRequest(0, 1, i);
+                        generateRequest(null, 0L, 1L, i);
                     }
                     allocatedMemslices += memslicesToAlloc;
                 }

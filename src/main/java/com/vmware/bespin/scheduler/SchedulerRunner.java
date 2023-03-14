@@ -61,17 +61,26 @@ public class SchedulerRunner extends DCMRunner {
         final Result<? extends Record> results;
         final long start = System.currentTimeMillis();
         final long solveFinish;
-         try {
-             results = model.solve("PENDING");
-             solveFinish = System.currentTimeMillis();
-         } catch (ModelException | SolverException e) {
-             LOG.error(e);
-             return false;
-         }
- 
-         // TODO: should find a way to batch these
-         // Add new assignments to placed, remove new assignments from pending
-         for (final Record r : results) {
+        try {
+            results = model.solve("PENDING");
+            solveFinish = System.currentTimeMillis();
+        } catch (ModelException | SolverException e) {
+            LOG.error(e);
+            //if (this.getNumPendingRequests() > 0) {
+            // Notify requests they were not feasible. Drop them from the pending table.
+            // TOOD: FIX THIS, FIX THIS, FIX THIS
+            //}
+            return false;
+        }
+
+        // Solver did no work
+        if (results.isEmpty()) {
+            return false;
+        }
+
+        // TODO: should find a way to batch these
+        // Add new assignments to placed, remove new assignments from pending
+        for (final Record r : results) {
             // Extract fields from the record
             final Long recordId = (Long) r.get("ID");
             final Integer controllableNode = (Integer) r.get("CONTROLLABLE__NODE");
@@ -107,17 +116,17 @@ public class SchedulerRunner extends DCMRunner {
                 () -> {
                     try {
                         LOG.info("RPCServer thread started");
-                        final RPCServer rpcServer = new TCPServer("172.31.0.20", 6970);
+                        final RPCServer<DCMRunner> rpcServer = new TCPServer<DCMRunner>("172.31.0.20", 6970);
                         LOG.info("Created server");
-                        rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler(conn));
-                        rpcServer.register(RPCID.ALLOC, new AllocHandler(conn));
-                        rpcServer.register(RPCID.RELEASE, new ReleaseHandler(conn));
-                        rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler(conn));
-                        rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler(conn));
+                        rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
+                        rpcServer.register(RPCID.ALLOC, new AllocHandler());
+                        rpcServer.register(RPCID.RELEASE, new ReleaseHandler());
+                        rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler());
+                        rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
                         LOG.info("Registered handlers");
                         rpcServer.addClient();
                         LOG.info("Added Client");
-                        rpcServer.runServer();
+                        rpcServer.runServer(this);
                     } catch (final IOException e) {
                         LOG.error("RPCServer thread failed");
                         LOG.error(e);
@@ -137,7 +146,7 @@ public class SchedulerRunner extends DCMRunner {
             final long timeElapsed = System.currentTimeMillis() - lastSolve;
 
             // Get number of rows
-            final int numRequests = getNumPendingRequests();
+            final long numRequests = getNumPendingRequests();
 
             // If time since last solve is too long, solve
             if (timeElapsed >= this.maxTimePerSolve || numRequests >= this.maxReqsPerSolve) {

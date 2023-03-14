@@ -8,6 +8,9 @@ package com.vmware.bespin.scheduler;
 import org.junit.jupiter.api.Test; 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
@@ -22,25 +25,23 @@ public class TestDCMRunner {
             0, 0, false, false);
 
         // Check number of nodes
-        assertEquals(runner.numNodes(), runner.actualNumNodes());
         assertEquals(0, runner.numNodes());
         
         // Check core capacity and use
-        assertEquals(runner.coreCapacity(), runner.actualCoreCapacity());
         assertEquals(0, runner.coreCapacity());
         assertEquals(0, runner.usedCores());
 
         // Check memslice capacity
-        assertEquals(runner.memsliceCapacity(), runner.actualMemsliceCapacity());
         assertEquals(0, runner.memsliceCapacity());
         assertEquals(0, runner.usedMemslices());
 
         // Check number of applications
-        assertEquals(runner.numApps(), runner.actualNumApps());
         assertEquals(0, runner.numApps());
 
         // Check pending requests
         assertEquals(0, runner.getNumPendingRequests());
+        long[] idList = runner.getPendingRequestIDs();
+        assertEquals(0, idList.length);
 
         // Check capacity
         assertFalse(runner.checkForCapacityViolation());
@@ -48,10 +49,10 @@ public class TestDCMRunner {
 
     @Test
     public void testRunnerInstantiation() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -60,33 +61,31 @@ public class TestDCMRunner {
             NUM_APPS, 0, false, false);
 
         // Check number of nodes
-        assertEquals(runner.actualNumNodes(), runner.numNodes());
         assertEquals(runner.numNodes(), NUM_NODES);
         
         // Check core capacity and use
-        assertEquals(runner.actualCoreCapacity(), runner.coreCapacity());
         assertEquals(runner.coreCapacity(), NUM_NODES * CORES_PER_NODE);
         assertEquals(runner.usedCores(), 0);
 
         // Check memslice capacity
-        assertEquals(runner.actualMemsliceCapacity(), runner.memsliceCapacity());
         assertEquals(runner.memsliceCapacity(), NUM_NODES * MEMSLICES_PER_NODE);
         assertEquals(runner.usedMemslices(), 0);
 
         // Check per-node valudes
-        for (int i = 1; i <= NUM_NODES; i++) {
-            assertEquals(runner.actualCoreCapacityForNode(i), CORES_PER_NODE);
+        for (long i = 1; i <= NUM_NODES; i++) {
+            assertEquals(runner.coreCapacityForNode(i), CORES_PER_NODE);
             assertEquals(runner.usedCoresForNode(i), 0);
-            assertEquals(runner.actualMemsliceCapacityForNode(i), MEMSLICES_PER_NODE);
+            assertEquals(runner.memsliceCapacityForNode(i), MEMSLICES_PER_NODE);
             assertEquals(runner.usedMemslicesForNode(i), 0);
         }
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), NUM_APPS);
 
         // Check pending requests
         assertEquals(runner.getNumPendingRequests(), 0);
+        long[] idList = runner.getPendingRequestIDs();
+        assertEquals(0, idList.length);
 
         // Check capacity
         assertFalse(runner.checkForCapacityViolation());
@@ -94,10 +93,10 @@ public class TestDCMRunner {
 
     @Test
     public void testAddNode() throws ClassNotFoundException {
-        int numNodes = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        long numNodes = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -106,29 +105,25 @@ public class TestDCMRunner {
             NUM_APPS, 0, false, false);
 
         // Check number of nodes
-        assertEquals(runner.actualNumNodes(), runner.numNodes());
         assertEquals(runner.numNodes(), numNodes);
         
         // Check core capacity and use
-        assertEquals(runner.actualCoreCapacity(), runner.coreCapacity());
         assertEquals(runner.coreCapacity(), numNodes * CORES_PER_NODE);
         assertEquals(runner.usedCores(), 0);
 
         // Check memslice capacity
-        assertEquals(runner.actualMemsliceCapacity(), runner.memsliceCapacity());
         assertEquals(runner.memsliceCapacity(), numNodes * MEMSLICES_PER_NODE);
         assertEquals(runner.usedMemslices(), 0);
 
         // Check per-node values
-        for (int i = 1; i <= numNodes; i++) {
-            assertEquals(runner.actualCoreCapacityForNode(i), CORES_PER_NODE);
+        for (long i = 1; i <= numNodes; i++) {
+            assertEquals(runner.coreCapacityForNode(i), CORES_PER_NODE);
             assertEquals(runner.usedCoresForNode(i), 0);
-            assertEquals(runner.actualMemsliceCapacityForNode(i), MEMSLICES_PER_NODE);
+            assertEquals(runner.memsliceCapacityForNode(i), MEMSLICES_PER_NODE);
             assertEquals(runner.usedMemslicesForNode(i), 0);
         }
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), NUM_APPS);
 
         assertFalse(runner.checkForCapacityViolation());
@@ -137,29 +132,25 @@ public class TestDCMRunner {
         runner.addNode(numNodes, CORES_PER_NODE, MEMSLICES_PER_NODE);
         
         // Check number of nodes
-        assertEquals(runner.actualNumNodes(), runner.numNodes());
         assertEquals(runner.numNodes(), numNodes);
                 
         // Check core capacity and use
-        assertEquals(runner.actualCoreCapacity(), runner.coreCapacity());
         assertEquals(runner.coreCapacity(), numNodes * CORES_PER_NODE);
         assertEquals(runner.usedCores(), 0);
         
         // Check memslice capacity
-        assertEquals(runner.actualMemsliceCapacity(), runner.memsliceCapacity());
         assertEquals(runner.memsliceCapacity(), numNodes * MEMSLICES_PER_NODE);
         assertEquals(runner.usedMemslices(), 0);
         
         // Check per-node values
         for (int i = 1; i <= numNodes; i++) {
-            assertEquals(runner.actualCoreCapacityForNode(i), CORES_PER_NODE);
+            assertEquals(runner.coreCapacityForNode(i), CORES_PER_NODE);
             assertEquals(runner.usedCoresForNode(i), 0);
-            assertEquals(runner.actualMemsliceCapacityForNode(i), MEMSLICES_PER_NODE);
+            assertEquals(runner.memsliceCapacityForNode(i), MEMSLICES_PER_NODE);
             assertEquals(runner.usedMemslicesForNode(i), 0);
         }
         
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), NUM_APPS);
         
         assertFalse(runner.checkForCapacityViolation());
@@ -167,10 +158,10 @@ public class TestDCMRunner {
 
     @Test
     public void testAddApp() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        int numApps = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        long numApps = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -179,23 +170,21 @@ public class TestDCMRunner {
             numApps, 0, false, false);
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), numApps);
 
         numApps += 1;
         runner.addApplication(numApps);
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), numApps);
     }
 
     @Test
     public void testChooseRandomApplication() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -204,26 +193,24 @@ public class TestDCMRunner {
             NUM_APPS, null, false, false);
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), NUM_APPS);
 
         // Check number of applications
         for (int i = 0; i < 10; i++) {
-            final int randomApp = runner.chooseRandomApplication();
+            final long randomApp = runner.chooseRandomApplication();
             assert(randomApp >= 1 && randomApp <= NUM_APPS);
         }
 
         // Check number of applications
-        assertEquals(runner.actualNumApps(), runner.numApps());
         assertEquals(runner.numApps(), NUM_APPS);
     }
 
     @Test
     public void testCoresForUtil() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -242,10 +229,10 @@ public class TestDCMRunner {
 
     @Test
     public void testMemslicesForUtil() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -264,10 +251,10 @@ public class TestDCMRunner {
 
     @Test
     public void testPendingRequests() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -276,22 +263,91 @@ public class TestDCMRunner {
             NUM_APPS, null, false, false);
 
         // Add a request
-        for (int i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
+        for (long i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
             assertEquals(runner.getNumPendingRequests(), i);
             if (i < runner.coreCapacity()) {
-                runner.generateRequest(1, 0, (i % NUM_APPS) + 1);
+                runner.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
             } else {
-                runner.generateRequest(0, 1, (i % NUM_APPS) + 1);
+                runner.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
             }
         }
     }
 
     @Test
+    public void testPendingRequestIdUnique() throws ClassNotFoundException {
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        DCMRunner runner = new DCMRunner(conn, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, 
+            NUM_APPS, null, false, false);
+
+        Set<Long> pendingIdSet = new HashSet<Long>();
+
+        // Add a request
+        for (long i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
+            assertEquals(runner.getNumPendingRequests(), i);
+            final long[] pendingIds = runner.getPendingRequestIDs();
+            assertEquals(i, pendingIds.length);
+            for (final long id: pendingIds) {
+                pendingIdSet.add(id);
+            }
+            assertEquals(i, pendingIdSet.size());
+
+            if (i < runner.coreCapacity()) {
+                runner.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
+            } else {
+                runner.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
+            }
+        }
+    }
+
+    @Test
+    public void testPendingRequestIds() throws ClassNotFoundException {
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        DCMRunner runner = new DCMRunner(conn, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, 
+            NUM_APPS, null, false, false);
+
+        Set<Long> pendingIdSet = new HashSet<Long>();
+        Set<Long> pendingIdSetBaseline = new HashSet<Long>();
+
+        // Add a request
+        for (long i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
+            assertEquals(runner.getNumPendingRequests(), i);
+            final long[] pendingIds = runner.getPendingRequestIDs();
+            assertEquals(i, pendingIds.length);
+            for (final long id: pendingIds) {
+                pendingIdSet.add(id);
+            }
+            assertEquals(i, pendingIdSet.size());
+            assertEquals(pendingIdSetBaseline, pendingIdSet);
+
+            if (i < runner.coreCapacity()) {
+                runner.generateRequest(i, 1, 0, (i % NUM_APPS) + 1);
+            } else {
+                runner.generateRequest(i, 0, 1, (i % NUM_APPS) + 1);
+            }
+            pendingIdSetBaseline.add(i);
+        }
+    }
+
+    @Test
     public void testPendingRandomRequests() throws ClassNotFoundException {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -300,7 +356,7 @@ public class TestDCMRunner {
             NUM_APPS, null, false, false);
 
         // Add a request
-        for (int i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
+        for (long i = 0; i < runner.coreCapacity() + runner.memsliceCapacity(); i++) {
             assertEquals(runner.getNumPendingRequests(), i);
             runner.generateRandomRequest();
         }
@@ -308,10 +364,10 @@ public class TestDCMRunner {
 
     @Test
     public void testNothingToSolve() throws Exception {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -331,10 +387,10 @@ public class TestDCMRunner {
 
     @Test
     public void testUpdateAllocation() throws Exception {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 4;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 4;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -343,15 +399,15 @@ public class TestDCMRunner {
             NUM_APPS, null, false, false);
 
         // Below code is dependent on NUM_NODE==2, and CORES_PER_NODE==MEMSLICES_PER_NODE
-        for (int i = 0; i < (runner.coreCapacity() + runner.memsliceCapacity()) / 2; i++) {
-            final int coreNode = (i % 2) + 1;
-            final int memNode = ((i + 1) % 2) + 1;
+        for (long i = 0; i < (runner.coreCapacity() + runner.memsliceCapacity()) / 2; i++) {
+            final long coreNode = (i % 2) + 1;
+            final long memNode = ((i + 1) % 2) + 1;
 
             // Ensure this does nothing
-            final int usedCores = runner.usedCores();
-            final int usedMemslices = runner.usedMemslices();
-            int usedCoresForNode = runner.usedCoresForNode(coreNode);
-            int usedMemslicesForNode = runner.usedMemslicesForNode(coreNode);
+            final long usedCores = runner.usedCores();
+            final long usedMemslices = runner.usedMemslices();
+            long usedCoresForNode = runner.usedCoresForNode(coreNode);
+            long usedMemslicesForNode = runner.usedMemslicesForNode(coreNode);
             
             // add nothing
             runner.updateAllocation(coreNode, runner.chooseRandomApplication(), 0, 0);
@@ -370,13 +426,13 @@ public class TestDCMRunner {
             // check cores
             assertEquals(usedCores + 1, runner.usedCores());
             assertEquals(usedCoresForNode + 1, runner.usedCoresForNode(coreNode));
-            assertTrue(runner.coresPerNode == CORES_PER_NODE);
-            assertTrue(runner.usedCoresForNode(coreNode) <= runner.coresPerNode);
+            assertTrue(runner.coreCapacityForNode(coreNode) == CORES_PER_NODE);
+            assertTrue(runner.usedCoresForNode(coreNode) <= runner.coreCapacityForNode(coreNode));
 
             // check memslices
             assertEquals(usedMemslices, runner.usedMemslices());
             assertEquals(usedMemslicesForNode, runner.usedMemslicesForNode(coreNode));
-            assertTrue(runner.usedMemslicesForNode(coreNode) <= runner.memslicesPerNode);
+            assertTrue(runner.usedMemslicesForNode(coreNode) <= runner.memsliceCapacityForNode(coreNode));
 
             // switch nodes
             usedCoresForNode = runner.usedCoresForNode(memNode);
@@ -392,7 +448,7 @@ public class TestDCMRunner {
             // check memslices
             assertEquals(usedMemslices + 1, runner.usedMemslices());
             assertEquals(usedMemslicesForNode + 1, runner.usedMemslicesForNode(memNode));
-            assertTrue(runner.usedMemslicesForNode(memNode) <= runner.memslicesPerNode);
+            assertTrue(runner.usedMemslicesForNode(memNode) <= runner.memsliceCapacityForNode(memNode));
 
             // check overall capacity & runner state  
             assertTrue(runner.usedCores() + runner.usedMemslices() <= runner.coreCapacity() + runner.memsliceCapacity());
@@ -403,10 +459,10 @@ public class TestDCMRunner {
 
     @Test
     public void testApplication() throws Exception {
-        final int NUM_NODES = 5;
-        final int CORES_PER_NODE = 5;
-        final int MEMSLICES_PER_NODE = 5;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 5;
+        final long CORES_PER_NODE = 5;
+        final long MEMSLICES_PER_NODE = 5;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -419,7 +475,7 @@ public class TestDCMRunner {
         assertEquals(1, runner.nodesForApplication(1));
         assertEquals(2, runner.usedCoresForApplication(1));
         assertEquals(0, runner.usedMemslicesForApplication(1));
-        for (int i = 2; i <= NUM_APPS; i++) {
+        for (long i = 2; i <= NUM_APPS; i++) {
             assertEquals(0, runner.nodesForApplication(i));
             assertEquals(0, runner.usedCoresForApplication(i));
             assertEquals(0, runner.usedMemslicesForApplication(i));
@@ -429,7 +485,7 @@ public class TestDCMRunner {
         assertEquals(2, runner.nodesForApplication(1));
         assertEquals(3, runner.usedCoresForApplication(1));
         assertEquals(1, runner.usedMemslicesForApplication(1));
-        for (int i = 2; i <= NUM_APPS; i++) {
+        for (long i = 2; i <= NUM_APPS; i++) {
             assertEquals(0, runner.nodesForApplication(i));
             assertEquals(0, runner.usedCoresForApplication(i));
             assertEquals(0, runner.usedMemslicesForApplication(i));
@@ -451,10 +507,10 @@ public class TestDCMRunner {
 
     @Test
     public void testUpdateAllocationMulti() throws Exception {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 4;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 4;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -463,9 +519,9 @@ public class TestDCMRunner {
             NUM_APPS, null, false, false);
 
         // Request two cores
-        int node = 1;
-        final int usedCores = runner.usedCores();
-        final int usedCoresForNode = runner.usedCoresForNode(node);
+        long node = 1;
+        final long usedCores = runner.usedCores();
+        final long usedCoresForNode = runner.usedCoresForNode(node);
         assertEquals(usedCores, 0);
         runner.updateAllocation(node, runner.chooseRandomApplication(), 2, 0);
         assertEquals(usedCores + 2, runner.usedCores());
@@ -477,8 +533,8 @@ public class TestDCMRunner {
 
         // Request 3 memslices
         node = 2;
-        final int usedMemslices = runner.usedMemslices();
-        final int usedMemslicesForNode = runner.usedMemslicesForNode(node);
+        final long usedMemslices = runner.usedMemslices();
+        final long usedMemslicesForNode = runner.usedMemslicesForNode(node);
         assertEquals(usedCores, 0);
         runner.updateAllocation(node, runner.chooseRandomApplication(), 0, 3);
         assertEquals(usedCores + 2, runner.usedCores());
@@ -502,10 +558,10 @@ public class TestDCMRunner {
 
     @Test 
     public void testCheckCapacityViolation() throws Exception {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 4;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 4;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -527,10 +583,10 @@ public class TestDCMRunner {
 
     @Test
     public void testRequestAndSolve() throws Exception {
-        final int NUM_NODES = 2;
-        final int CORES_PER_NODE = 3;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 5;
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -542,13 +598,13 @@ public class TestDCMRunner {
         assertEquals(runner.usedCores() + runner.usedMemslices(), 0);
 
         // Add a request
-        for (int i = 1; i <= runner.coreCapacity() + runner.memsliceCapacity(); i++) {
+        for (long i = 1; i <= runner.coreCapacity() + runner.memsliceCapacity(); i++) {
 
             // Generate a random request
             if (i <= runner.coreCapacity()) {
-                runner.generateRequest(1, 0, (i % NUM_APPS) + 1);
+                runner.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
             } else {
-                runner.generateRequest(0, 1, (i % NUM_APPS) + 1);
+                runner.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
             }
             assertEquals(1, runner.getNumPendingRequests());
 
@@ -562,7 +618,7 @@ public class TestDCMRunner {
                 assertEquals(0, runner.usedMemslices());
 
                 int aggregatedUsedCores = 0;
-                for (int j = 1; j <= NUM_NODES; j++) {
+                for (long j = 1; j <= NUM_NODES; j++) {
                     aggregatedUsedCores += runner.usedCoresForNode(j);
                     assertEquals(0, runner.usedMemslicesForNode(j));
                 }  
@@ -571,10 +627,9 @@ public class TestDCMRunner {
             } else {
                 assertEquals(i - runner.coreCapacity(), runner.usedMemslices());
                 assertEquals(runner.coreCapacity(), runner.usedCores());
-                assertEquals(runner.actualCoreCapacity(), runner.usedCores());
 
                 int aggregatedUsedMemslices = 0;
-                for (int j = 1; j <= NUM_NODES; j++) {
+                for (long j = 1; j <= NUM_NODES; j++) {
                     aggregatedUsedMemslices += runner.usedMemslicesForNode(j);
                 }  
                 assertEquals(i - runner.coreCapacity(), aggregatedUsedMemslices);         
@@ -593,10 +648,10 @@ public class TestDCMRunner {
 
     @Test
     public void testFillRandomUtil() throws Exception {
-        final int NUM_NODES = 10;
-        final int CORES_PER_NODE = 10;
-        final int MEMSLICES_PER_NODE = 20;
-        final int NUM_APPS = 10;
+        final long NUM_NODES = 10;
+        final long CORES_PER_NODE = 10;
+        final long MEMSLICES_PER_NODE = 20;
+        final long NUM_APPS = 10;
 
         // Create database
         Class.forName("org.h2.Driver");
@@ -613,23 +668,23 @@ public class TestDCMRunner {
 
     @Test
     public void testFillRandomDistribution() throws Exception {
-        final int NUM_NODES = 10;
-        final int CORES_PER_NODE = 10;
-        final int MEMSLICES_PER_NODE = 20;
-        final int NUM_APPS = 10;
+        final long NUM_NODES = 10;
+        final long CORES_PER_NODE = 10;
+        final long MEMSLICES_PER_NODE = 20;
+        final long NUM_APPS = 10;
 
         // Test randomness of fill per node.
         // Get the average of averages of number of cores on a node each iter.
-        int[] aggregate_core_fill = new int[NUM_NODES];
-        int[] aggregate_memslice_fill = new int[NUM_NODES];
+        int[] aggregate_core_fill = new int[(int) NUM_NODES];
+        int[] aggregate_memslice_fill = new int[(int) NUM_NODES];
 
-        int[] aggregate_core_per_app = new int[NUM_APPS];
-        int[] aggregate_memslice_per_app = new int[NUM_APPS];
+        int[] aggregate_core_per_app = new int[(int) NUM_APPS];
+        int[] aggregate_memslice_per_app = new int[(int) NUM_APPS];
 
         final int ITERS = 100;
         final int FILL_UTIL = 50;
 
-        for (int i = 0; i < ITERS; i++) {
+        for (long i = 0; i < ITERS; i++) {
             // Create database
             Class.forName("org.h2.Driver");
             DSLContext conn = DSL.using("jdbc:h2:mem:");
@@ -642,13 +697,13 @@ public class TestDCMRunner {
             assertEquals((runner.memsliceCapacity() * FILL_UTIL) / 100, runner.usedMemslices());
         
             for (int j = 1; j <= NUM_NODES; j++) {
-                aggregate_core_fill[j - 1] += runner.usedCoresForNode(j);
-                aggregate_memslice_fill[j - 1] += runner.usedMemslicesForNode(j);
+                aggregate_core_fill[j - 1] += runner.usedCoresForNode((long) j);
+                aggregate_memslice_fill[j - 1] += runner.usedMemslicesForNode((long) j);
             }
 
             for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication(j);
-                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication(j);
+                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication((long) j);
             }
         }
 
@@ -685,16 +740,16 @@ public class TestDCMRunner {
 
     @Test
     public void testFillSingleStep() throws Exception {
-        final int NUM_NODES = 4;
-        final int CORES_PER_NODE = 4;
-        final int MEMSLICES_PER_NODE = 4;
-        final int NUM_APPS = 4;
+        final long NUM_NODES = 4;
+        final long CORES_PER_NODE = 4;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 4;
 
-        final int ITERS = 10;
+        final long ITERS = 10;
         final int FILL_UTIL = 50;
 
-        int[] aggregate_core_per_app = new int[NUM_APPS];
-        int[] aggregate_memslice_per_app = new int[NUM_APPS];
+        int[] aggregate_core_per_app = new int[(int) NUM_APPS];
+        int[] aggregate_memslice_per_app = new int[(int) NUM_APPS];
 
         for (int i = 0; i <= ITERS; i++) {
             // Create database
@@ -710,8 +765,8 @@ public class TestDCMRunner {
             assertEquals(runner.memsliceCapacity() / 2, runner.usedMemslices());
 
             for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication(j);
-                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication(j);
+                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication((long) j);
             }
         }
 
@@ -734,16 +789,16 @@ public class TestDCMRunner {
 
     @Test
     public void testFillPoissonUtil() throws Exception {
-        final int NUM_NODES = 10;
-        final int CORES_PER_NODE = 10;
-        final int MEMSLICES_PER_NODE = 20;
-        final int NUM_APPS = 10;
+        final long NUM_NODES = 10;
+        final long CORES_PER_NODE = 10;
+        final long MEMSLICES_PER_NODE = 20;
+        final long NUM_APPS = 10;
 
         // Test randomness of fill per node.
         int aggregate_core_fill = 0;
         int aggregate_memslice_fill = 0;
 
-        final int ITERS = 10;
+        final long ITERS = 10;
         final int FILL_UTIL = 50;
 
         // Assume mean requests is for 20% of the cluster per step. This is set high
@@ -751,8 +806,8 @@ public class TestDCMRunner {
         final double CORE_MEAN = (double) CORES_PER_NODE * 0.2;
         final double MEMSLICE_MEAN = (double) MEMSLICES_PER_NODE * 0.2;
 
-        int[] aggregate_core_per_app = new int[NUM_APPS];
-        int[] aggregate_memslice_per_app = new int[NUM_APPS];
+        int[] aggregate_core_per_app = new int[(int) NUM_APPS];
+        int[] aggregate_memslice_per_app = new int[(int) NUM_APPS];
 
         for (int i = 0; i < ITERS; i++) {
             // Create database
@@ -768,8 +823,8 @@ public class TestDCMRunner {
             aggregate_memslice_fill += runner.usedMemslices();
 
             for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication(j);
-                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication(j);
+                aggregate_core_per_app[j - 1] += runner.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j - 1] += runner.usedMemslicesForApplication((long) j);
             }
         }
         float avg_core_fill = ((float) aggregate_core_fill) / ((float) ITERS);

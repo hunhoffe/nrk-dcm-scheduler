@@ -40,8 +40,8 @@ public class TestConstraints {
         // one application
         runner.addApplication(1);
         // create 2 pending allocation
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // one placed pending allocation
         conn.execute("insert into pending values(3, 1, 1, 1, 'PLACED', 1, 1)");
@@ -147,8 +147,8 @@ public class TestConstraints {
         runner.updateAllocation(1, 2, 0, 1);
 
         // create 2 pending allocations - will check to see if they are placed on node 2
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -200,8 +200,8 @@ public class TestConstraints {
         runner.updateAllocation(1, 2, 0, 1);
 
         // create 2 pending allocations - will check to see if they are placed on node 2
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -242,10 +242,10 @@ public class TestConstraints {
         runner.updateAllocation(2, 1, 1, 1);
 
         // create enough pending allocations to fill all capacity
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(0, 1, 1);
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -283,7 +283,7 @@ public class TestConstraints {
         assertEquals(1, twoMemslice.get());
 
         // now add a pending allocation we don't have space for
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         try {
@@ -315,14 +315,10 @@ public class TestConstraints {
         runner.addApplication(1);
 
         // create enough pending allocations to fill all capacity
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(1, 0, 1);
-        runner.generateRequest(0, 1, 1);
-        runner.generateRequest(0, 1, 1);
-        //conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        //conn.execute("insert into pending values(2, 1, 1, 0, 'PENDING', null, null)");
-        //conn.execute("insert into pending values(3, 1, 0, 1, 'PENDING', null, null)");
-        //conn.execute("insert into pending values(4, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -361,7 +357,7 @@ public class TestConstraints {
 
         // now add a pending allocation we don't have space for
         //conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
-        runner.generateRequest(0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         try {
@@ -385,6 +381,7 @@ public class TestConstraints {
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), constraints);
 
+        // TODO: update these values
         // three nodes with two memslices each
         conn.execute("insert into nodes values(1, 2, 1)");
         conn.execute("insert into nodes values(2, 2, 1)");

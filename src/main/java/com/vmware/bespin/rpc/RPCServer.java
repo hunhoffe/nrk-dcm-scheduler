@@ -10,14 +10,14 @@ import com.vmware.bespin.scheduler.rpc.RPCID;
 import java.io.IOException;
 
 /// RPC server operations
-public abstract class RPCServer {
+public abstract class RPCServer<S> {
     /// Register an RPC func with an ID
-    public abstract boolean register(RPCID id, RPCHandler handler);
+    public abstract boolean register(RPCID id, RPCHandler<S> handler);
 
     ///  Accept an RPC client
     // TODO: should really have a handler as an argument but not needed yet
     public abstract boolean addClient();
 
     /// Run the RPC server
-    public abstract boolean runServer() throws IOException;
+    public abstract boolean runServer(S serverContext) throws IOException;
 }

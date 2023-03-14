@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 
-public class TCPServer extends RPCServer {
+public class TCPServer<S> extends RPCServer<S> {
     ServerSocket socket = null;
     Socket clientSocket = null;
     OutputStream clientOut = null;
@@ -46,7 +46,7 @@ public class TCPServer extends RPCServer {
     }
 
     @Override
-    public boolean register(final RPCID rpcId, final RPCHandler handler) {
+    public boolean register(final RPCID rpcId, final RPCHandler<S> handler) {
         // Cannot add if key already exists
         if (this.handlers.containsKey(rpcId.id())) {
             return false;
@@ -79,12 +79,12 @@ public class TCPServer extends RPCServer {
     }
 
     @Override
-    public boolean runServer() throws IOException {
+    public boolean runServer(final S serverContext) throws IOException {
         try {
             while (true) {
                 final RPCMessage msg = this.receive();
                 if (this.handlers.containsKey(msg.hdr().getType())) {
-                    this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg));
+                    this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg, serverContext));
                 } else {
                     LOG.error("Invalid msgType: {}", msg.hdr().getType());
                 }

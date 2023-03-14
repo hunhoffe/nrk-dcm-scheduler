@@ -11,29 +11,20 @@ import com.vmware.bespin.rpc.RPCMessage;
 import com.vmware.bespin.scheduler.DCMRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
 
-public class RegisterNodeHandler extends RPCHandler {
+public class RegisterNodeHandler extends RPCHandler<DCMRunner> {
     private static final Logger LOG = LogManager.getLogger(RegisterNodeHandler.class);
-
     private int requestId = 0;
-    private DSLContext conn;
 
-    public RegisterNodeHandler(final DSLContext conn) {
-        this.conn = conn;
-    }
+    public RegisterNodeHandler() { }
 
     @Override
-    public RPCMessage handleRPC(final RPCMessage msg) {
+    public RPCMessage handleRPC(final RPCMessage msg, final DCMRunner runner) {
         final RPCHeader hdr = msg.hdr();
         assert (hdr.msgLen == RegisterNodeRequest.BYTE_LEN);
         final RegisterNodeRequest req = new RegisterNodeRequest(msg.payload());
 
-        conn.insertInto(DCMRunner.NODE_TABLE)
-                .set(DCMRunner.NODE_TABLE.ID, requestId)
-                .set(DCMRunner.NODE_TABLE.CORES, (int) req.cores)
-                .set(DCMRunner.NODE_TABLE.MEMSLICES, (int) req.memslices)
-                .execute();
+        runner.addNode(requestId, req.cores, req.memslices);
         LOG.info("Handled register node request: {}, assigned id {}", req, requestId);
 
         hdr.msgLen = RegisterNodeResponse.BYTE_LEN;
