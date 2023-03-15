@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 
 import org.jooq.DSLContext;
@@ -154,6 +155,41 @@ public class TestDCMRunner {
         assertEquals(runner.numApps(), NUM_APPS);
         
         assertFalse(runner.checkForCapacityViolation());
+    }
+
+    @Test
+    public void testUpdateNode() throws ClassNotFoundException {
+        long numNodes = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        DCMRunner runner = new DCMRunner(conn, numNodes, CORES_PER_NODE, MEMSLICES_PER_NODE, 
+            NUM_APPS, 0, false, false);
+
+        // Check number of nodes
+        assertEquals(runner.numNodes(), numNodes);
+
+        // Add CORES_PER_NODE to node 1, subtract one memslice from node 2
+        runner.updateNode(1, CORES_PER_NODE, 0, true);
+        runner.updateNode(2, 0, 1, false);
+        
+        // Check core capacity and use
+        assertEquals(runner.coreCapacity(), numNodes * CORES_PER_NODE + CORES_PER_NODE);
+        assertEquals(runner.usedCores(), 0);
+
+        // Check memslice capacity
+        assertEquals(runner.memsliceCapacity(), numNodes * MEMSLICES_PER_NODE - 1);
+        assertEquals(runner.usedMemslices(), 0);
+
+        // Check per-node values
+        assertEquals(runner.coreCapacityForNode(1), CORES_PER_NODE * 2);
+        assertEquals(runner.memsliceCapacityForNode(1), MEMSLICES_PER_NODE);
+        assertEquals(runner.coreCapacityForNode(2), CORES_PER_NODE);
+        assertEquals(runner.memsliceCapacityForNode(2), MEMSLICES_PER_NODE - 1);
     }
 
     @Test
@@ -421,39 +457,108 @@ public class TestDCMRunner {
             assertEquals(usedMemslicesForNode, runner.usedMemslicesForNode(coreNode));
 
             // add a core
-            runner.updateAllocation(coreNode, runner.chooseRandomApplication(), 1, 0);
+            final long coreApplication = runner.chooseRandomApplication();
+            long coresPerApplicationOnNode = runner.usedCoresForApplicationOnNode(coreApplication, coreNode);
+            long memslicesPerApplicationOnNode = runner.usedMemslicesForApplicationOnNode(coreApplication, coreNode);
+            runner.updateAllocation(coreNode, coreApplication, 1, 0);
 
             // check cores
             assertEquals(usedCores + 1, runner.usedCores());
             assertEquals(usedCoresForNode + 1, runner.usedCoresForNode(coreNode));
-            assertTrue(runner.coreCapacityForNode(coreNode) == CORES_PER_NODE);
+            assertEquals(runner.coreCapacityForNode(coreNode), CORES_PER_NODE);
             assertTrue(runner.usedCoresForNode(coreNode) <= runner.coreCapacityForNode(coreNode));
+            assertEquals(runner.usedCoresForApplicationOnNode(coreApplication, coreNode), coresPerApplicationOnNode + 1);
 
             // check memslices
             assertEquals(usedMemslices, runner.usedMemslices());
             assertEquals(usedMemslicesForNode, runner.usedMemslicesForNode(coreNode));
             assertTrue(runner.usedMemslicesForNode(coreNode) <= runner.memsliceCapacityForNode(coreNode));
+            assertEquals(runner.usedMemslicesForApplicationOnNode(coreApplication, coreNode), memslicesPerApplicationOnNode);
 
             // switch nodes
             usedCoresForNode = runner.usedCoresForNode(memNode);
             usedMemslicesForNode = runner.usedMemslicesForNode(memNode);
             
             // add a memslice
-            runner.updateAllocation(memNode, runner.chooseRandomApplication(), 0, 1);
+            final long memsliceApplication = runner.chooseRandomApplication();
+            coresPerApplicationOnNode = runner.usedCoresForApplicationOnNode(memsliceApplication, memNode);
+            memslicesPerApplicationOnNode = runner.usedMemslicesForApplicationOnNode(memsliceApplication, memNode);
+            runner.updateAllocation(memNode, memsliceApplication, 0, 1);
 
             // check cores didn't change
             assertEquals(usedCores + 1, runner.usedCores());
             assertEquals(usedCoresForNode, runner.usedCoresForNode(memNode));
+            assertEquals(runner.usedCoresForApplicationOnNode(memsliceApplication, memNode), coresPerApplicationOnNode);
 
-            // check memslices
+            // check memslices did change
             assertEquals(usedMemslices + 1, runner.usedMemslices());
             assertEquals(usedMemslicesForNode + 1, runner.usedMemslicesForNode(memNode));
             assertTrue(runner.usedMemslicesForNode(memNode) <= runner.memsliceCapacityForNode(memNode));
-
+            assertEquals(runner.usedMemslicesForApplicationOnNode(memsliceApplication, memNode), memslicesPerApplicationOnNode + 1);
+            
             // check overall capacity & runner state  
             assertTrue(runner.usedCores() + runner.usedMemslices() <= runner.coreCapacity() + runner.memsliceCapacity());
             assertEquals(runner.getNumPendingRequests(), 0);
             assertFalse(runner.checkForCapacityViolation());
+        }
+    }
+
+    @Test
+    public void testReleaseAllocation() throws Exception {
+        final long NUM_NODES = 5;
+        final long CORES_PER_NODE = 5;
+        final long MEMSLICES_PER_NODE = 5;
+        final long NUM_APPS = 5;
+
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        DCMRunner runner = new DCMRunner(conn, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, 
+            NUM_APPS, null, false, false);
+        
+        final Random rand = new Random(0xc0ffee);
+
+        // Fill entire cluster
+        runner.fillRandom(100);
+
+        for (long application = 1; application <= NUM_APPS; application++) {
+            for (long node = 1; node <= NUM_NODES; node++) {
+                final long cores = runner.usedCoresForApplicationOnNode(application, node);
+                final long memslices = runner.usedMemslicesForApplicationOnNode(application, node);
+    
+                final long coresToRelease;
+                final long memslicesToRelease;
+                if (0 == cores) {
+                    coresToRelease = 0;
+                } else {
+                    coresToRelease = (long) rand.nextInt((int) cores + 1);
+                }
+                if (0 == memslices) {
+                    memslicesToRelease = 0;
+                } else {
+                    memslicesToRelease = (long) rand.nextInt((int) memslices + 1);
+                }
+
+                final long initialCoreCapacity = runner.coreCapacity();
+                final long initialMemsliceCapacity = runner.memsliceCapacity();
+                final long initialUsedCores = runner.usedCores();
+                final long initialUsedMemslices = runner.usedMemslices();
+                final long initialCoresForApplication = runner.usedCoresForApplication(application);
+                final long initialMemslicesForApplication = runner.usedMemslicesForApplication(application);
+                final long initialCoresForNode = runner.usedCoresForNode(node);
+                final long initialMemslicesForNode = runner.usedMemslicesForNode(node);
+                runner.releaseAllocation(node, application, coresToRelease, memslicesToRelease);
+                assertEquals(initialCoreCapacity, runner.coreCapacity());
+                assertEquals(initialMemsliceCapacity, runner.memsliceCapacity());
+                assertEquals(initialUsedCores - coresToRelease, runner.usedCores());
+                assertEquals(initialUsedMemslices - memslicesToRelease, runner.usedMemslices());
+                assertEquals(initialCoresForApplication - coresToRelease, runner.usedCoresForApplication(application));
+                assertEquals(initialMemslicesForApplication - memslicesToRelease, runner.usedMemslicesForApplication(application));
+                assertEquals(initialCoresForNode - coresToRelease, runner.usedCoresForNode(node));
+                assertEquals(initialMemslicesForNode - memslicesToRelease, runner.usedMemslicesForNode(node));
+                assertEquals(cores - coresToRelease, runner.usedCoresForApplicationOnNode(application, node));
+                assertEquals(memslices - memslicesToRelease, runner.usedMemslicesForApplicationOnNode(application, node));
+            }
         }
     }
 

@@ -207,12 +207,11 @@ public class DCMRunner {
     }
 
     /**
-     * TODO: test this.
-     * Add a node to the cluster state
+     * Changes the resources belonging to a node by adding or subtracting.
      * 
      * @param id        the node id
-     * @param cores     the core id
-     * @param memslices the memslice id
+     * @param cores     the number of cores to add or subtract from the node
+     * @param memslices the number of memslices to add or subtract from the node
      */
     public void updateNode(final long id, final long cores, final long memslices, final boolean isAdd) {
         if (isAdd) {
@@ -293,6 +292,27 @@ public class DCMRunner {
     }
 
     /**
+     * The number of cores allocated for a particular application on a particular node
+     * 
+     * @param application the application to check for core usage
+     * @param node the node to check for core usage
+     * @return usedCores the number of cores currently allocated for an application
+     */
+    protected long usedCoresForApplicationOnNode(final long application, final long node) {
+        final String sql = String.format("select sum(placed.cores) from placed where application = %d and node = %d", 
+                application, node);
+        long coresUsed = 0;
+        final Result<Record> coreResults = conn.fetch(sql);
+        if (null != coreResults && coreResults.isNotEmpty()) {
+            if (null != coreResults.get(0).getValue(0)) {
+                coresUsed = (Long) coreResults.get(0).getValue(0);
+            }
+        }
+        return coresUsed;
+    }
+
+
+    /**
      * The number of memslices allocated for a particular application
      * 
      * @param application the application to check for memslice usage
@@ -310,6 +330,28 @@ public class DCMRunner {
         }
         return memslicesUsed;
     }
+
+    /**
+     * The number of memslices allocated for a particular application on a particular node
+     * 
+     * @param application the application to check for memslices usage
+     * @param node the node to check for memslice usage
+     * @return usedMemslices the number of memslices currently allocated for an application
+     */
+    protected long usedMemslicesForApplicationOnNode(final long application, final long node) {
+        final String sql = String.format(
+                "select sum(placed.memslices) from placed where application = %d and node = %d", 
+                application, node);
+        long memslicesUsed = 0;
+        final Result<Record> memsliceResults = conn.fetch(sql);
+        if (null != memsliceResults && memsliceResults.isNotEmpty()) {
+            if (null != memsliceResults.get(0).getValue(0)) {
+                memslicesUsed = (Long) memsliceResults.get(0).getValue(0);
+            }
+        }
+        return memslicesUsed;
+    }
+
 
     /**
      * The number of nodes in application is running on
@@ -520,7 +562,6 @@ public class DCMRunner {
     /**
      * Randomly determine the number of cores and memslices to allocate for each
      * application.
-     * TODO: rewrite using Poisson generation.
      * 
      * @param coreAllocs     the aggregate number of core allocations to assign
      * @param memsliceAllocs the aggregate number of memslice allocations to assign
@@ -676,7 +717,6 @@ public class DCMRunner {
 
     /**
      * Release allocation (e.g., mark resources as unused)
-     * TODO: test this.
      * 
      * @param node        the node that formerly owned the resources
      * @param application the application the resources were formerly allocated to
