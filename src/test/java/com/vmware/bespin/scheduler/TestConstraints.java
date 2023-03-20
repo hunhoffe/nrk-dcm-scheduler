@@ -25,22 +25,24 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(Constraints.getPlacedConstraint().sql()));
 
         // two nodes with 1 core, 1 memslice each
-        conn.execute("insert into nodes values(1, 1, 1)");
-        conn.execute("insert into nodes values(2, 1, 1)");
+        runner.addNode(1, 1, 1);
+        runner.addNode(2, 1, 1);
         // one application
-        conn.execute("insert into applications values(1)");
+        runner.addApplication(1);
         // create 2 pending allocation
-        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(2, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
+
         // one placed pending allocation
         conn.execute("insert into pending values(3, 1, 1, 1, 'PLACED', 1, 1)");
 
@@ -114,11 +116,12 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
                 Constraints.getPlacedConstraint().sql(),
@@ -129,19 +132,23 @@ public class TestConstraints {
         ));
 
         // three nodes with two cores, two memslices each
-        conn.execute("insert into nodes values(1, 4, 4)");
-        conn.execute("insert into nodes values(2, 4, 4)");
-        conn.execute("insert into nodes values(3, 4, 4)");
-        // one application
-        conn.execute("insert into applications values(1)");
-        conn.execute("insert into applications values(2)");
+        runner.addNode(1, 4, 4);
+        runner.addNode(2, 4, 4);
+        runner.addNode(3, 4, 4);
+
+        // add applications
+        runner.addApplication(1);
+        runner.addApplication(2);
+
         // place a memslice from application 1 on node 2
-        conn.execute("insert into placed values(1, 2, 0, 1)");
+        runner.updateAllocation(2, 1, 0, 1);
+
         // place a memslice from application 2 on node 1 for confusion
-        conn.execute("insert into placed values(2, 1, 0, 1)");
+        runner.updateAllocation(1, 2, 0, 1);
+
         // create 2 pending allocations - will check to see if they are placed on node 2
-        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(2, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -163,11 +170,12 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
                 Constraints.getPlacedConstraint().sql(),
@@ -177,19 +185,23 @@ public class TestConstraints {
         ));
 
         // three nodes with two cores, two memslices each
-        conn.execute("insert into nodes values(1, 4, 4)");
-        conn.execute("insert into nodes values(2, 4, 4)");
-        conn.execute("insert into nodes values(3, 4, 4)");
+        runner.addNode(1, 4, 4);
+        runner.addNode(2, 4, 4);
+        runner.addNode(3, 4, 4);
+
         // one application
-        conn.execute("insert into applications values(1)");
-        conn.execute("insert into applications values(2)");
+        runner.addApplication(1);
+        runner.addApplication(2);
+
         // place a memslice from application 1 on node 2
-        conn.execute("insert into placed values(1, 2, 0, 1)");
+        runner.updateAllocation(2, 1, 0, 1);
+
         // place a memslice from application 2 on node 1 for confusion
-        conn.execute("insert into placed values(2, 1, 0, 1)");
+        runner.updateAllocation(1, 2, 0, 1);
+
         // create 2 pending allocations - will check to see if they are placed on node 2
-        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(2, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -209,27 +221,31 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), constraints);
 
         // two nodes with 1 core, 1 memslice each
-        conn.execute("insert into nodes values(1, 2, 2)");
-        conn.execute("insert into nodes values(2, 2, 2)");
+        runner.addNode(1, 2, 2);
+        runner.addNode(2, 2, 2);
+
         // one application
-        conn.execute("insert into applications values(1)");
+        runner.addApplication(1);
+
         // placed work
-        conn.execute("insert into placed values(1, 1, 1, 1)");
-        conn.execute("insert into placed values(1, 2, 1, 1)");
+        runner.updateAllocation(1, 1, 1, 1);
+        runner.updateAllocation(2, 1, 1, 1);
+
         // create enough pending allocations to fill all capacity
-        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(2, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(3, 1, 0, 1, 'PENDING', null, null)");
-        conn.execute("insert into pending values(4, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -267,7 +283,8 @@ public class TestConstraints {
         assertEquals(1, twoMemslice.get());
 
         // now add a pending allocation we don't have space for
-        conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 0, 1, 1);
+
         // run model and check result
         try {
             model.solve("PENDING");
@@ -281,26 +298,27 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), constraints);
 
         // two nodes with 1 core, 1 memslice each
-        conn.execute("insert into nodes values(1, 1, 1)");
-        conn.execute("insert into nodes values(2, 1, 1)");
+        runner.addNode(1, 1, 1);
+        runner.addNode(2, 1, 1);
 
         // one application
-        conn.execute("insert into applications values(1)");
+        runner.addApplication(1);
 
         // create enough pending allocations to fill all capacity
-        conn.execute("insert into pending values(1, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(2, 1, 1, 0, 'PENDING', null, null)");
-        conn.execute("insert into pending values(3, 1, 0, 1, 'PENDING', null, null)");
-        conn.execute("insert into pending values(4, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 1, 0, 1);
+        runner.generateRequest(null, 0, 1, 1);
+        runner.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -338,7 +356,9 @@ public class TestConstraints {
         assertEquals(1, twoMemslice.get());
 
         // now add a pending allocation we don't have space for
-        conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
+        //conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
+        runner.generateRequest(null, 0, 1, 1);
+
         // run model and check result
         try {
             model.solve("PENDING");
@@ -352,14 +372,16 @@ public class TestConstraints {
         // Create database
         Class.forName("org.h2.Driver");
         DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner.setupDb(conn);
+        new DCMRunner(conn, 0, 0, 0, 
+            0, 0, false, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(true)
+                .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), constraints);
 
+        // TODO: update these values
         // three nodes with two memslices each
         conn.execute("insert into nodes values(1, 2, 1)");
         conn.execute("insert into nodes values(2, 2, 1)");

@@ -5,6 +5,6 @@
 
 package com.vmware.bespin.rpc;
 
-public abstract class RPCHandler {
-    public abstract RPCMessage handleRPC(RPCMessage msg);
+public abstract class RPCHandler<S> {
+    public abstract RPCMessage handleRPC(RPCMessage msg, S serverContext);
 }

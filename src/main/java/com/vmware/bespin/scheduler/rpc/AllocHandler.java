@@ -8,42 +8,24 @@ package com.vmware.bespin.scheduler.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.DCMRunner;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.DSLContext;
-import org.jooq.Field;
 
-public class AllocHandler extends RPCHandler {
+public class AllocHandler extends RPCHandler<DCMRunner> {
     private static final Logger LOG = LogManager.getLogger(AllocHandler.class);
     private long requestId = 0;
-    private DSLContext conn;
-
-    public AllocHandler(final DSLContext conn) {
-        this.conn = conn;
-    }
 
     @Override
-    public RPCMessage handleRPC(final RPCMessage msg) {
+    public RPCMessage handleRPC(final RPCMessage msg, final DCMRunner runner) {
         final RPCHeader hdr = msg.hdr();
         final AllocRequest req = new AllocRequest(msg.payload());
 
         // Add application to application table if new
-        conn.insertInto(Scheduler.APPLICATION_TABLE)
-                .set(Scheduler.APPLICATION_TABLE.ID, (int) req.application)
-                .onDuplicateKeyIgnore()
-                .execute();
+        runner.addApplication(req.application);
 
         // Add request to pending table
-        conn.insertInto(Scheduler.PENDING_TABLE)
-                .set(Scheduler.PENDING_TABLE.ID, requestId)
-                .set(Scheduler.PENDING_TABLE.APPLICATION, (int) req.application)
-                .set(Scheduler.PENDING_TABLE.CORES, (int) req.cores)
-                .set(Scheduler.PENDING_TABLE.MEMSLICES, (int) req.memslices)
-                .set(Scheduler.PENDING_TABLE.STATUS, "PENDING")
-                .set(Scheduler.PENDING_TABLE.CURRENT_NODE, -1)
-                .set(Scheduler.PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
-                .execute();
+        runner.generateRequest(requestId, req.cores, req.memslices, req.application);
         LOG.info("Processed scheduler request: {}", req);
 
         hdr.msgLen = AllocResponse.BYTE_LEN;
