@@ -90,7 +90,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.vmware.bespin.scheduler.SchedulerRunner</mainClass>
+                            <mainClass>com.vmware.bespin.scheduler.Scheduler</mainClass>
 		        </manifest>
                         <manifestEntries>
                           <Class-Path>.</Class-Path>
