@@ -25,10 +25,13 @@ public class AllocHandler extends RPCHandler<DCMRunner> {
         runner.addApplication(req.application);
 
         // Add request to pending table
-        runner.generateRequest(requestId, req.cores, req.memslices, req.application);
+        runner.generateRequests(requestId, req.cores, req.memslices, req.application);
         LOG.info("Processed scheduler request: {}", req);
 
+        final long requestIdStart = requestId;
+        requestId += req.cores + req.memslices;
+
         hdr.msgLen = AllocResponse.BYTE_LEN;
-        return new RPCMessage(hdr, new AllocResponse(requestId++).toBytes());
+        return new RPCMessage(hdr, new AllocResponse(requestIdStart).toBytes());
     }
 }

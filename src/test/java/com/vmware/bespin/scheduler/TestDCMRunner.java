@@ -752,6 +752,53 @@ public class TestDCMRunner {
     }
 
     @Test
+    public void testGenerateRequestsAndSolve() throws Exception {
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+
+        // Create database
+        Class.forName("org.h2.Driver");
+        DSLContext conn = DSL.using("jdbc:h2:mem:");
+        DCMRunner runner = new DCMRunner(conn, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, 
+            NUM_APPS, null, false, false);
+
+        assertEquals(runner.getNumPendingRequests(), 0);
+        assertEquals(runner.usedCores() + runner.usedMemslices(), 0);
+
+        // Generate a couple of core requests
+        runner.generateRequests(0L, 3, 0, 1);
+        assertEquals(runner.getNumPendingRequests(), 3);
+
+        // Fulfull the request
+        assertTrue(runner.runModelAndUpdateDB(false));
+        assertEquals(runner.usedCores(), 3);
+        assertEquals(runner.usedMemslices(), 0);
+        assertEquals(runner.getNumPendingRequests(), 0);
+
+        // Generate a couple of memslice requests
+        runner.generateRequests(null, 0, 2, 1);
+        assertEquals(runner.getNumPendingRequests(), 2);
+
+        // Fulfull the request
+        assertTrue(runner.runModelAndUpdateDB(false));
+        assertEquals(runner.usedCores(), 3);
+        assertEquals(runner.usedMemslices(), 2);
+        assertEquals(runner.getNumPendingRequests(), 0);
+
+        // Generate a mix of requests
+        runner.generateRequests(10L, 2, 2, 1);
+        assertEquals(runner.getNumPendingRequests(), 4);
+        
+        // Fulfull the request
+        assertTrue(runner.runModelAndUpdateDB(false));
+        assertEquals(runner.usedCores(), 5);
+        assertEquals(runner.usedMemslices(), 4);
+        assertEquals(runner.getNumPendingRequests(), 0);
+    }
+
+    @Test
     public void testFillRandomUtil() throws Exception {
         final long NUM_NODES = 10;
         final long CORES_PER_NODE = 10;
