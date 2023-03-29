@@ -8,6 +8,7 @@ package com.vmware.bespin.scheduler;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
+import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 import com.vmware.bespin.scheduler.generated.tables.Placed;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
@@ -21,6 +22,7 @@ import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Record;
 import org.jooq.Result;
+
 import static org.jooq.impl.DSL.and;
 
 import java.io.BufferedReader;
@@ -645,6 +647,7 @@ public class DCMRunner {
     /**
      * Submit a request for a resource to the pending table.
      * 
+     * @param id          the id of the pending request to generate (null if dynamically generate)
      * @param cores       the number of cores to request
      * @param memslices   the number of memslices to request
      * @param application the application that is requesting the resource(s)
@@ -674,6 +677,46 @@ public class DCMRunner {
                 .set(PENDING_TABLE.CONTROLLABLE__NODE, (Field<Integer>) null)
                 .execute();
         }
+    }
+
+    /**
+     * Submit requests for a resources to the pending table. Decompose so each request has 1 memslice or 1 core.
+     * 
+     * @param id          the id of the first pending request to generate (null if dynamically generate)
+     * @param cores       the number of cores to request
+     * @param memslices   the number of memslices to request
+     * @param application the application that is requesting the resource(s)
+     */
+    public void generateRequests(final Long id, final long cores, final long memslices, final long application) {
+        LOG.info("Created request for application {} ({} cores, {} memslices)", 
+                application, cores, memslices);
+        Long currentId = id;
+
+        // Create a list of records
+        final List<PendingRecord> records = new ArrayList();
+        for (int i = 0; i < cores + memslices; i++) {
+            final PendingRecord record = new PendingRecord();
+            record.setValue(PENDING_TABLE.APPLICATION, (int) application);
+            if (currentId != null) {
+                record.setValue(PENDING_TABLE.ID, (long) currentId);
+                currentId++;
+            }
+            if (i < cores) {
+                record.setValue(PENDING_TABLE.CORES, (int) 1);
+                record.setValue(PENDING_TABLE.MEMSLICES, (int) 0);
+            } else {
+                record.setValue(PENDING_TABLE.CORES, (int) 0);
+                record.setValue(PENDING_TABLE.MEMSLICES, (int) 1);
+            }
+            record.setValue(PENDING_TABLE.STATUS, "PENDING");
+            record.setValue(PENDING_TABLE.CURRENT_NODE, -1);
+            record.setValue(PENDING_TABLE.CONTROLLABLE__NODE, null);
+
+            records.add(record);
+        }
+
+        // Batch execute them all at once
+        final int[] results = conn.batchInsert(records).execute();
     }
 
     /**
