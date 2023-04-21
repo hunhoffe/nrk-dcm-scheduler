@@ -120,7 +120,7 @@ public class Scheduler {
         // initialize database with no resources
         final SchedulerRunner runner = new SchedulerRunner(conn, 0, 0, 0, 0, null, 
                 true, false, maxReqsPerSolve, maxTimePerSolve, pollInterval, 
-                InetAddress.getByName("172.31.0.11"), 6971);
+                InetAddress.getByName("172.31.0.11"), 10100, 10101);
         runner.run(false);
     }
 }
