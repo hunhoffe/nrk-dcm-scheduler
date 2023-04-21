@@ -5,7 +5,9 @@
 
 package com.vmware.bespin.scheduler;
 
+import com.vmware.bespin.rpc.RPCClient;
 import com.vmware.bespin.rpc.RPCServer;
+import com.vmware.bespin.rpc.TCPClient;
 import com.vmware.bespin.rpc.TCPServer;
 
 import com.vmware.bespin.scheduler.rpc.RPCID;
@@ -22,9 +24,6 @@ import org.jooq.Record;
 import org.jooq.Result;
 
 import java.io.IOException;
-
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 
@@ -32,14 +31,16 @@ public class SchedulerRunner extends DCMRunner {
     private final int maxReqsPerSolve;
     private final long maxTimePerSolve;
     private final long pollInterval;
-    private final DatagramSocket udpSocket;
     private final InetAddress ip;
-    private final int port;
+    private final int serverPort;
+    private final int clientPort;
+    private RPCClient rpcClient;
 
     SchedulerRunner(final DSLContext conn, final int numNodes, final int coresPerNode, 
             final int memslicesPerNode, final int numApps, final Integer randomSeed, 
             final boolean useCapFunc, final boolean usePrintDiagnostics, final int maxReqsPerSolve, 
-            final long maxTimePerSolve, final long pollInterval, final InetAddress ip, final int port) 
+            final long maxTimePerSolve, final long pollInterval, final InetAddress ip, 
+            final int serverPort, final int clientPort) 
     throws SocketException {
 
         super(conn, numNodes, coresPerNode, memslicesPerNode, numApps, randomSeed, useCapFunc, false);
@@ -47,9 +48,9 @@ public class SchedulerRunner extends DCMRunner {
         this.maxReqsPerSolve = maxReqsPerSolve;
         this.maxTimePerSolve = maxTimePerSolve;
         this.pollInterval = pollInterval;
-        this.udpSocket = new DatagramSocket();
         this.ip = ip;
-        this.port = port;
+        this.serverPort = serverPort;
+        this.clientPort = clientPort;
 
         LOG.info("Running scheduler with parameters: useCapFunction={}, maxReqsPerSolve={}, " +
             "maxTimePerSolve={}, pollInterval={}",
@@ -93,14 +94,10 @@ public class SchedulerRunner extends DCMRunner {
                      .where(PENDING_TABLE.ID.eq(recordId))
                      .execute();
 
-            // TODO: move object creation out of loop
+            // TODO: send rpc to server.
             final SchedulerAssignment assignment = new SchedulerAssignment(recordId, controllableNode.longValue());
-            final DatagramPacket packet = new DatagramPacket(assignment.toBytes(), SchedulerAssignment.BYTE_LEN);
-            packet.setAddress(this.ip);
-            packet.setPort(this.port);
-            this.udpSocket.send(packet);
-            LOG.info("Sent allocation for {}", recordId);
-            this.udpSocket.receive(packet);
+            LOG.info("Assigning alloc_id {} to node {}", recordId, controllableNode.longValue());
+            this.rpcClient.call(RPCID.ALLOC_ASSIGNMENT, assignment.toBytes());
         }
         
         final long updateFinish = System.currentTimeMillis();
@@ -116,7 +113,7 @@ public class SchedulerRunner extends DCMRunner {
                 () -> {
                     try {
                         LOG.info("RPCServer thread started");
-                        final RPCServer<DCMRunner> rpcServer = new TCPServer<DCMRunner>("172.31.0.20", 6970);
+                        final RPCServer<DCMRunner> rpcServer = new TCPServer<DCMRunner>("172.31.0.20", this.serverPort);
                         LOG.info("Created server");
                         rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
                         rpcServer.register(RPCID.ALLOC, new AllocHandler());
@@ -125,7 +122,11 @@ public class SchedulerRunner extends DCMRunner {
                         rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
                         LOG.info("Registered handlers");
                         rpcServer.addClient();
-                        LOG.info("Added Client");
+                        LOG.info("Server added client");
+                        this.rpcClient = new TCPClient(this.ip, this.clientPort);
+                        LOG.info("Added RPC client");
+                        this.rpcClient.connect();
+                        LOG.info("Connected RPC client");
                         rpcServer.runServer(this);
                     } catch (final IOException e) {
                         LOG.error("RPCServer thread failed");
