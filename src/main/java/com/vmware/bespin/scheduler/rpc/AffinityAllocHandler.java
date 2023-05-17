@@ -39,6 +39,7 @@ public class AffinityAllocHandler extends RPCHandler<DCMRunner> {
         LOG.info("Processed scheduler affinity request: {}, cores: {}, " +
                 "cores_used: {}, memslices: {}, memslices_used: {}, ret: {}", 
                 req, coreCapacity, usedCores, memsliceCapacity, usedMemslices, requestFulfilled);
+        runner.printStats();
 
         hdr.msgLen = AffinityResponse.BYTE_LEN;
         return new RPCMessage(hdr, new AffinityResponse(requestFulfilled).toBytes());
