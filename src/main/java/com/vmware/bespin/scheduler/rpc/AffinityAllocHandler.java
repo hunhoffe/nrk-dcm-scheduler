@@ -29,6 +29,10 @@ public class AffinityAllocHandler extends RPCHandler<DCMRunner> {
         final long usedCores = runner.usedCoresForNode(req.nodeId);
         final long usedMemslices = runner.usedMemslicesForNode(req.nodeId);
 
+        LOG.info("Processed scheduler affinity request: {}, cores: {}, " +
+            "cores_used: {}, memslices: {}, memslices_used: {}", 
+            req, coreCapacity, usedCores, memsliceCapacity, usedMemslices);
+
         // There is enough memory to fulfill the alloc request!
         if (memsliceCapacity >= usedMemslices + req.memslices && coreCapacity >= usedCores + req.cores) {
             // Subtract from the overall node resource
@@ -36,9 +40,15 @@ public class AffinityAllocHandler extends RPCHandler<DCMRunner> {
             requestFulfilled = true;
         }
 
+        // Fetch capacity of the node
+        final long coreCapacity2 = runner.coreCapacityForNode(req.nodeId);
+        final long memsliceCapacity2 = runner.memsliceCapacityForNode(req.nodeId);
+        final long usedCores2 = runner.usedCoresForNode(req.nodeId);
+        final long usedMemslices2 = runner.usedMemslicesForNode(req.nodeId);
+
         LOG.info("Processed scheduler affinity request: {}, cores: {}, " +
                 "cores_used: {}, memslices: {}, memslices_used: {}, ret: {}", 
-                req, coreCapacity, usedCores, memsliceCapacity, usedMemslices, requestFulfilled);
+                req, coreCapacity2, usedCores2, memsliceCapacity2, usedMemslices2, requestFulfilled);
         runner.printStats();
 
         hdr.msgLen = AffinityResponse.BYTE_LEN;
