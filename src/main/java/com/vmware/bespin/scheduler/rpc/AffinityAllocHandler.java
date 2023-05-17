@@ -29,7 +29,7 @@ public class AffinityAllocHandler extends RPCHandler<DCMRunner> {
         final long usedCores = runner.usedCoresForNode(req.nodeId);
         final long usedMemslices = runner.usedMemslicesForNode(req.nodeId);
 
-        LOG.info("Processed scheduler affinity request: {}, cores: {}, " +
+        LOG.warn("Processed scheduler affinity request: {}, cores: {}, " +
             "cores_used: {}, memslices: {}, memslices_used: {}", 
             req, coreCapacity, usedCores, memsliceCapacity, usedMemslices);
 
@@ -46,7 +46,7 @@ public class AffinityAllocHandler extends RPCHandler<DCMRunner> {
         final long usedCores2 = runner.usedCoresForNode(req.nodeId);
         final long usedMemslices2 = runner.usedMemslicesForNode(req.nodeId);
 
-        LOG.info("Processed scheduler affinity request: {}, cores: {}, " +
+        LOG.warn("Processed scheduler affinity request: {}, cores: {}, " +
                 "cores_used: {}, memslices: {}, memslices_used: {}, ret: {}", 
                 req, coreCapacity2, usedCores2, memsliceCapacity2, usedMemslices2, requestFulfilled);
         runner.printStats();
