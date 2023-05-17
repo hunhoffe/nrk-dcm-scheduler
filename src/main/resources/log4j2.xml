@@ -11,10 +11,7 @@
         <Logger name="com.vmware.bespin.scheduler.Simulation" level="info" additivity="false">
             <AppenderRef ref="console"/>
         </Logger>
-        <Logger name="com.vmware.bespin.scheduler.Simulation" level="info" additivity="false">
-            <AppenderRef ref="console"/>
-        </Logger>
-        <Root level="info">
+        <Root level="warn">
             <AppenderRef ref="console"/>
         </Root>
     </Loggers>
