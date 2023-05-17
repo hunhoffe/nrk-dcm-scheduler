@@ -96,7 +96,8 @@ public class SchedulerRunner extends DCMRunner {
 
             // TODO: send rpc to server.
             final SchedulerAssignment assignment = new SchedulerAssignment(recordId, controllableNode.longValue());
-            LOG.info("Assigning alloc_id {} to node {}", recordId, controllableNode.longValue());
+            LOG.warn("Assigning alloc_id {} cores={} memslices={} to node {}", 
+                    recordId, cores, memslices, controllableNode.longValue());
             this.rpcClient.call(RPCID.ALLOC_ASSIGNMENT, assignment.toBytes());
         }
         
