@@ -5,25 +5,23 @@
 
 package com.vmware.bespin.scheduler.rpc;
 
-import com.vmware.bespin.rpc.Utils;
-
 public class RegisterNodeResponse {
-    public static final int BYTE_LEN = Long.BYTES;
+     public static final int BYTE_LEN = 1;
 
-    final long nodeId;
+    final byte nodeCreated;
 
-    public RegisterNodeResponse(final long nodeId) {
-        this.nodeId = nodeId;
+    public RegisterNodeResponse(final boolean nodeCreated) {
+        this.nodeCreated = (byte) (nodeCreated ? 1 : 0);
     }
 
     public RegisterNodeResponse(final byte[] data) {
         assert (data.length == RegisterNodeResponse.BYTE_LEN);
-        this.nodeId = Utils.bytesToLong(data, 0);
+        this.nodeCreated = data[0];
     }
 
     public byte[] toBytes() {
         final byte[] buff = new byte[RegisterNodeResponse.BYTE_LEN];
-        Utils.longToBytes(this.nodeId, buff, 0);
+        buff[0] = this.nodeCreated;
         return buff;
     }
 }
