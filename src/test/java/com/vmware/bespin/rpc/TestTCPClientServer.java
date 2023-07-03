@@ -29,8 +29,8 @@ public class TestTCPClientServer {
  
     @Test
     public void testTCPClientServer() throws IOException {
-        final RPCServer<Integer> rpcServer = new TCPServer<Integer>("LOCALHOST", 10110);
-        final RPCClient rpcClient = new TCPClient(InetAddress.getByName("LOCALHOST"), 10110);
+        final RPCServer<Integer> rpcServer = new TCPServer<Integer>("LOCALHOST", 10210);
+        final RPCClient rpcClient = new TCPClient(InetAddress.getByName("LOCALHOST"), 10210);
 
         final Runnable serverRunner =
         () -> {

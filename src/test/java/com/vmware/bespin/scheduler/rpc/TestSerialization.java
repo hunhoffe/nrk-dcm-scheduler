@@ -51,21 +51,28 @@ public class TestSerialization {
 
     @Test
     public void testRegisterNodeRequest() {
-        RegisterNodeRequest req = new RegisterNodeRequest((byte) 3, (byte) 4);
+        RegisterNodeRequest req = new RegisterNodeRequest(2, (byte) 3, (byte) 4);
         byte[] b = req.toBytes();
         assert(b.length == RegisterNodeRequest.BYTE_LEN);
         RegisterNodeRequest req2 = new RegisterNodeRequest(b);
+        assert(req2.id == req.id);
         assert(req2.cores == req.cores);
         assert(req2.memslices == req.memslices);
     }
 
     @Test
     public void testRegisterNodeResponse() {
-        RegisterNodeResponse res = new RegisterNodeResponse(35);
+        RegisterNodeResponse res = new RegisterNodeResponse(true);
         byte[] b = res.toBytes();
         assert(b.length == RegisterNodeResponse.BYTE_LEN);
         RegisterNodeResponse res2 = new RegisterNodeResponse(b);
-        assert(res2.nodeId == res.nodeId);
+        assert(res2.nodeCreated == res.nodeCreated);
+
+        res = new RegisterNodeResponse(false);
+        b = res.toBytes();
+        assert(b.length == RegisterNodeResponse.BYTE_LEN);
+        res2 = new RegisterNodeResponse(b);
+        assert(res2.nodeCreated == res.nodeCreated);
     }
 
     @Test

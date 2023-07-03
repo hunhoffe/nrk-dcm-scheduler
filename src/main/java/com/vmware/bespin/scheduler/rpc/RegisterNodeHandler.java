@@ -14,8 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 public class RegisterNodeHandler extends RPCHandler<DCMRunner> {
     private static final Logger LOG = LogManager.getLogger(RegisterNodeHandler.class);
-    private int requestId = 0;
-
+    
     public RegisterNodeHandler() { }
 
     @Override
@@ -24,10 +23,10 @@ public class RegisterNodeHandler extends RPCHandler<DCMRunner> {
         assert (hdr.msgLen == RegisterNodeRequest.BYTE_LEN);
         final RegisterNodeRequest req = new RegisterNodeRequest(msg.payload());
 
-        runner.addNode(requestId, req.cores, req.memslices);
-        LOG.info("Handled register node request: {}, assigned id {}", req, requestId);
+        runner.addNode(req.id, req.cores, req.memslices);
+        LOG.info("Handled register node request: {}, assigned id {}", req, req.id);
 
         hdr.msgLen = RegisterNodeResponse.BYTE_LEN;
-        return new RPCMessage(hdr, new RegisterNodeResponse(requestId++).toBytes());
+        return new RPCMessage(hdr, new RegisterNodeResponse(true).toBytes());
     }
 }
