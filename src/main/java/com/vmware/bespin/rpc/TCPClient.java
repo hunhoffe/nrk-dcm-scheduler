@@ -50,7 +50,7 @@ public class TCPClient extends RPCClient {
  
     @Override
     public byte[] call(final RPCID id, final byte[] dataIn) throws IOException {
-        final RPCHeader hdr = new RPCHeader(id.id(), (long) dataIn.length);
+        final RPCHeader hdr = new RPCHeader(id.id(), (short) dataIn.length);
         RPCMessage msg = new RPCMessage(hdr, dataIn);
         LOG.info("TCPClient Sending msg: " + msg.toString());
         this.respond(msg);

@@ -11,7 +11,7 @@ public class TestRPCHeader {
 
     @Test
     public void testConversion() {
-        RPCHeader hdr = new RPCHeader((byte) 4, 5L);
+        RPCHeader hdr = new RPCHeader((byte) 4, (short) 5);
         byte[] b = hdr.toBytes();
         assert(b.length == RPCHeader.BYTE_LEN);
         RPCHeader hdr2 = new RPCHeader(b);

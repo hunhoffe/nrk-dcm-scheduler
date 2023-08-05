@@ -25,4 +25,22 @@ public class Utils {
         }
         return result;
     }
+
+    public static void shortToBytes(short l, final byte[] b, final int offset) {
+        for (int i = Short.BYTES - 1; i >= 0; i--) {
+            b[offset + Short.BYTES - 1 - i] = (byte) (l & 0xFF);
+            l >>= Byte.SIZE;
+        }
+    }
+
+    public static short bytesToShort(final byte[] b, final int offset) {
+        short result = 0;
+        for (int i = 0; i < Short.BYTES; i++) {
+            result <<= Byte.SIZE;
+            result |= (b[offset + Short.BYTES - 1 - i] & 0xFF);
+        }
+        return result;
+    }
 }
+
+
