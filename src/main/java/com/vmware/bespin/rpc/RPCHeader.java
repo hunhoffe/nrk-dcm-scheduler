@@ -6,26 +6,30 @@
 package com.vmware.bespin.rpc;
 
 public class RPCHeader {
-        public static final int BYTE_LEN = Long.BYTES * 2;
+        public static final int BYTE_LEN = 4;
 
-        private final long msgType;     // 8 byte
-        public long msgLen;             // 8 bytes
+        private final byte msgId;       // 1 byte
+        private final byte msgType;     // 1 byte
+        public short msgLen;            // 2 bytes
 
-        public RPCHeader(final long msgType, final long msgLen) {
+        public RPCHeader(final byte msgType, final short msgLen) {
+                this.msgId = 0;
                 this.msgType = msgType;
                 this.msgLen = msgLen;
         }
 
         public RPCHeader(final byte[] data) {
                 assert (data.length == RPCHeader.BYTE_LEN);
-                this.msgType = Utils.bytesToLong(data, 0);
-                this.msgLen = Utils.bytesToLong(data, Long.BYTES);
+                this.msgId = data[0];
+                this.msgType = data[1];
+                this.msgLen = Utils.bytesToShort(data, 2);
         }
 
         public byte[] toBytes() {
                 final byte[] buff = new byte[RPCHeader.BYTE_LEN];
-                Utils.longToBytes(this.msgType, buff, 0);
-                Utils.longToBytes(this.msgLen, buff, Long.BYTES);
+                buff[0] = this.msgId;
+                buff[1] = this.msgType;
+                Utils.shortToBytes(this.msgLen, buff, 2);
                 return buff;
         }
 
@@ -35,6 +39,6 @@ public class RPCHeader {
 
         @Override
         public String toString() {
-                return String.format("RPCHdr(type=%d, len=%d)", this.msgType, this.msgLen);
+                return String.format("RPCHdr(id=%d, type=%d, len=%d)", this.msgId, this.msgType, this.msgLen);
         }
 }
