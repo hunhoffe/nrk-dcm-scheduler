@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler.rpc;
+package com.vmware.bespin.scheduler.dinos.rpc;
 
 public enum RPCID {
     REGISTER_CLIENT((byte) 0),

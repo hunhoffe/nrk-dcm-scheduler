@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.scheduler.dinos;
 
 import com.vmware.bespin.rpc.Utils;
 

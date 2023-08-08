@@ -13,7 +13,7 @@ import java.net.InetAddress;
 
 import org.junit.jupiter.api.Test;
 
-import com.vmware.bespin.scheduler.rpc.RPCID;
+import com.vmware.bespin.scheduler.dinos.rpc.RPCID;
  
 public class TestTCPClientServer {
 

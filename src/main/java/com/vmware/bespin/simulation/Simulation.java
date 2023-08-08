@@ -5,284 +5,379 @@
 
 package com.vmware.bespin.simulation;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.commons.math3.random.JDKRandomGenerator;
+import org.apache.commons.math3.random.RandomDataGenerator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.impl.DSL;
+import org.jooq.Result;
+import org.jooq.Record;
 
-import com.vmware.bespin.scheduler.DCMRunner;
+import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.generated.tables.Applications;
+import com.vmware.bespin.scheduler.generated.tables.Nodes;
+import com.vmware.bespin.scheduler.generated.tables.Pending;
+import com.vmware.bespin.scheduler.generated.tables.Placed;
 
 public class Simulation {
-    // Cluster Size
-    private static final String NUM_NODES_OPTION = "numNodes";
-    private static final int NUM_NODES_DEFAULT = 64;
-    private static final String CORES_PER_NODE_OPTION = "coresPerNode";
-    private static final int CORES_PER_NODE_DEFAULT = 128;
-    private static final String MEMSLICES_PER_NODE_OPTION = "memslicesPerNode";
-    private static final int MEMSLICES_PER_NODE_DEFAULT = 256;
+    public static final Nodes NODE_TABLE = Nodes.NODES;
+    public static final Applications APP_TABLE = Applications.APPLICATIONS;
+    public static final Placed PLACED_TABLE = Placed.PLACED;
+    public static final Pending PENDING_TABLE = Pending.PENDING;
 
-    // Cluster utilization & fill method
-    private static final String CLUSTER_UTILIZATION_OPTION = "clusterUtil";
-    private static final int CLUSTER_UTILIZATION_DEFAULT = 50;
-    private static final String CLUSTER_FILL_OPTION = "clusterFill";
-    private static final String CLUSTER_FILL_DEFAULT = "random";
+    protected Logger LOG = LogManager.getLogger(Simulation.class);
+    protected static Scheduler scheduler;
+    protected static DSLContext conn;
+    protected final RandomDataGenerator rand;
+    protected int numApps;
 
-    // Which scheduler to use
-    private static final String SCHEDULER_OPTION = "scheduler";
-    private static final String SCHEDULER_DEFAULT = "DCMloc";
+    public Simulation(final DSLContext conn, final Scheduler scheduler, final Integer randomSeed, 
+            final int numNodes, final int coresPerNode, final int memslicesPerNode, final int numApps) {
+        // Argument validation
+        assert numNodes >= 0;
+        assert coresPerNode >= 0;
+        assert memslicesPerNode >= 0;
+        assert numApps >= 0;
+        if (numNodes > 0) {
+            assert coresPerNode > 0;
+            assert memslicesPerNode > 0;
+        } else {
+            assert coresPerNode == 0;
+            assert memslicesPerNode == 0;
+        }
 
-    // Number of processes
-    private static final String NUM_APPS_OPTION = "numApps";
-    private static final int NUM_APPS_DEFAULT = 20;
+        this.scheduler = scheduler;
+        this.conn = conn;
+        this.numApps = numApps;
 
-    // Batch size
-    private static final String ALLOCS_PER_STEP_OPTION = "allocsPerStep";
-    private static final int ALLOCS_PER_STEP_DEFAULT = 75;
+        if (randomSeed == null) {
+            this.rand = new RandomDataGenerator();
+        } else {
+            this.rand = new RandomDataGenerator(new JDKRandomGenerator(randomSeed));
+        }
 
-    // Random seed, used for debugging
-    private static final String RANDOM_SEED_OPTION = "randomSeed";
-
-    private static void print_help(final Options options) {
-        final HelpFormatter formatter = new HelpFormatter();
-        formatter.printHelp("java -jar target/scheduler-1.1.16-SNAPSHOT-jar-with-dependencies.jar [options]",
-                options);
+        // Add nodes with specified cores & memslices
+        for (int i = 1; i <= numNodes; i++) {
+            scheduler.addNode(i, coresPerNode, memslicesPerNode);
+        }
+        
+        // Add initial applications
+        for (int i = 1; i <= numApps; i++) {
+            scheduler.addApplication(i);
+        }
     }
 
-    public static void main(final String[] args) throws Exception {
+    /**
+     * Determine the number of cores that must be allocated to reach a target
+     * cluster utilization
+     * 
+     * @param clusterUtil the target cluster utilization percentage
+     * @return numCores the number of cores that must be allocated to read the
+     *         cluster utilization
+     */
+    protected long coresForUtil(final int clusterUtil) {
+        // Determine the number of cores to alloc in order to meet utilization
+        return (long) Math.ceil(((float) (scheduler.coreCapacity() * clusterUtil)) / 100.0);
+    }
 
-        // These are the defaults for these parameters.
-        // They should be overridden by commandline arguments.
-        int numNodes = NUM_NODES_DEFAULT;
-        int coresPerNode = CORES_PER_NODE_DEFAULT;
-        int memslicesPerNode = MEMSLICES_PER_NODE_DEFAULT;
-        int clusterUtil = CLUSTER_UTILIZATION_DEFAULT;
-        String clusterFill = CLUSTER_FILL_DEFAULT;
-        String scheduler = SCHEDULER_DEFAULT;
-        int numApps = NUM_APPS_DEFAULT;
-        int allocsPerStep = ALLOCS_PER_STEP_DEFAULT;
-        Integer randomSeed = null;
+    /**
+     * Select an application at random
+     * 
+     * @return application the application selected
+     */
+    protected long chooseRandomApplication() {
+        final String applicationIds = "select id from applications";
+        final Result<Record> results = conn.fetch(applicationIds);
+        return ((Integer) results.get(rand.nextInt(0, results.size() - 1)).getValue(0)).longValue();
+    }
 
-        final Logger log = LogManager.getLogger(Simulation.class);
+    /**
+     * Determine the number of memslices that must be allocated to reach a target
+     * cluster utilization
+     * 
+     * @param clusterUtil the target cluster utilization percentage
+     * @return numMemslices the number of memslices that must be allocated to read
+     *         the cluster utilization
+     */
+    protected long memslicesForUtil(final int clusterUtil) {
+        // Determine the number of memslices to alloc in order to meet utilization
+        return (long) Math.ceil(((float) (scheduler.memsliceCapacity() * clusterUtil)) / 100.0);
+    }
 
-        // create Options object
-        final Options options = new Options();
+    /**
+     * Randomly determine the number of cores and memslices to allocate for each
+     * application.
+     * 
+     * @param coreAllocs     the aggregate number of core allocations to assign
+     * @param memsliceAllocs the aggregate number of memslice allocations to assign
+     * @return allocMap a map containing a number of cores and memslices for each
+     *         application
+     */
+    protected HashMap<Long, List<Long>> generateAllocMap(final long coreAllocs,
+            final long memsliceAllocs) {
+        // Format of key=application number, values=[num_cores, num_memslices]
+        final HashMap<Long, List<Long>> appAllocMap = new HashMap<>();
 
-        final Option helpOption = Option.builder("h")
-                .longOpt("help").argName("h")
-                .hasArg(false)
-                .desc("print help message")
-                .build();
+        // Assign cores to applications
+        for (long i = 0; i < coreAllocs; i++) {
+            final long application = rand.nextInt(1, numApps);
+            final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
+            appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
+        }
 
-        // Set Cluster Size
-        final Option numNodesOption = Option.builder("n")
-                .longOpt(NUM_NODES_OPTION).argName(NUM_NODES_OPTION)
-                .hasArg()
-                .desc(String.format("number of nodes.%nDefault: %d", NUM_NODES_DEFAULT))
-                .type(Integer.class)
-                .build();
-        final Option coresPerNodeOption = Option.builder("c")
-                .longOpt(CORES_PER_NODE_OPTION).argName(CORES_PER_NODE_OPTION)
-                .hasArg()
-                .desc(String.format("cores per node.%nDefault: %d", CORES_PER_NODE_DEFAULT))
-                .type(Integer.class)
-                .build();
-        final Option memslicesPerNodeOption = Option.builder("m")
-                .longOpt(MEMSLICES_PER_NODE_OPTION).argName(MEMSLICES_PER_NODE_OPTION)
-                .hasArg()
-                .desc(String.format("number of 2 MB memory slices per node.%nDefault: %d", MEMSLICES_PER_NODE_DEFAULT))
-                .type(Integer.class)
-                .build();
+        // Assign memslices to applications
+        for (long i = 0; i < memsliceAllocs; i++) {
+            final long application = rand.nextInt(1, numApps);
+            final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
+            appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
+        }
+        return appAllocMap;
+    }
 
-        // Cluster utilization & fill method
-        final Option clusterUtilOption = Option.builder("u")
-            .longOpt(CLUSTER_UTILIZATION_OPTION).argName(CLUSTER_UTILIZATION_OPTION)
-            .hasArg()
-            .desc(String.format("cluster utilization as percentage.%nDefault: %d", CLUSTER_UTILIZATION_DEFAULT))
-            .type(Integer.class)
-            .build();
-        final Option clusterFillOption = Option.builder("f")
-            .longOpt(CLUSTER_FILL_OPTION).argName(CLUSTER_FILL_OPTION)
-            .hasArg()
-            .desc(String.format("cluster fill method (random | singlestep | poisson).%nDefault: %s", 
-                    CLUSTER_FILL_DEFAULT))
-            .type(String.class)
-            .build();
+    /**
+     * Generate a random request.
+     * 
+     * Determine if it's for a core or memslice in proportion to that resource.
+     * Choose an application at uniform random.
+     */
+    public void generateRandomRequest() {
+        final long totalResources = scheduler.coreCapacity() + scheduler.memsliceCapacity();
+
+        // Select an application at random
+        final long application = this.chooseRandomApplication();
+
+        // Determine if core or memslice, randomly chosen but weighted by capacity
+        int cores = 0;
+        int memslices = 0;
+        if (rand.nextLong(1, totalResources) < scheduler.coreCapacity()) {
+            cores = 1;
+        } else {
+            memslices = 1;
+        }
+        scheduler.generateRequest(null, cores, memslices, application);
+    }
+
+    /**
+     * Check if the database contains the correct number of core allocs and memslice
+     * alloc, as well as check for capacity violations. There should also be no pending
+     * allocations after running a fill algorithm
+     * 
+     * @param coreAllocs     the exepcted number of core allocations
+     * @param memsliceAllocs the expected number of memslice allocations
+     */
+    protected void checkFill(final long coreAllocs, final long memsliceAllocs) {
+        assert (scheduler.usedCores() == coreAllocs);
+        assert (scheduler.usedMemslices() == memsliceAllocs);
+        assert (!scheduler.checkForCapacityViolation());
+        assert (scheduler.getNumPendingRequests() == 0);
+    }
+
+    /**
+     * Fill the cluster to a certain utilization percentage by generating random
+     * requests as uniform random.
+     * 
+     * @param clusterUtil target cluster utilization
+     */
+    public void fillRandom(final int clusterUtil) {
+        assert scheduler.usedCores() == 0;
+        assert scheduler.usedMemslices() == 0;
+
+        // Determine the number of both resources to allocate based on clusterUtil
+        final long coreAllocs = coresForUtil(clusterUtil);
+        final long memsliceAllocs = memslicesForUtil(clusterUtil);
+        final long numNodes = scheduler.numNodes();
+
+        // Format of key=application number, values=[num_cores, num_memslices]
+        final HashMap<Long, List<Long>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
+
+        // Randomly assign application allocs to nodes
+        for (final Map.Entry<Long, List<Long>> entry : appAllocMap.entrySet()) {
+            final long application = entry.getKey();
+            final long cores = entry.getValue().get(0);
+            final long memslices = entry.getValue().get(1);
+
+            // Assign cores
+            for (int i = 0; i < cores; i++) {
+                boolean done = false;
+                while (!done) {
+                    // Choose a random node
+                    final long node = rand.nextLong(1, numNodes);
+
+                    // If there is a core available, allocate it.
+                    if (scheduler.coreCapacityForNode(node) - scheduler.usedCoresForNode(node) > 0) {
+                        scheduler.updateAllocation(node, application, 1L, 0L);
+                        done = true;
+                    }
+                }
+            }
+
+            // Assign memslices
+            for (int i = 0; i < memslices; i++) {
+                boolean done = false;
+                while (!done) {
+                    // Choose a random node
+                    final long node = rand.nextLong(1, numNodes);
+
+                    // If there is a core available, allocate it.
+                    if (scheduler.memsliceCapacityForNode(node) - scheduler.usedMemslicesForNode(node) > 0) {
+                        scheduler.updateAllocation(node, application, 0L, 1L);
+                        done = true;
+                    }
+                }
+            }
+        }
+        checkFill(coreAllocs, memsliceAllocs);
+    }
+
+    /**
+     * Fill the cluster to a certain utilization percentage by generating random
+     * requests to the pending table, and then running the solver.
+     * 
+     * The requests are split by memslices and cores, and also so no one request
+     * exceeds 1/2 node capacity.
+     * 
+     * @param clusterUtil target cluster utilization
+     */
+    public void fillSingleStep(final int clusterUtil) throws Exception {
+        assert scheduler.usedCores() == 0;
+        assert scheduler.usedMemslices() == 0;
+
+        // Determine the number of both resources to allocate based on clusterUtil
+        final long coreAllocs = coresForUtil(clusterUtil);
+        final long memsliceAllocs = memslicesForUtil(clusterUtil);
+
+        // Format of key=application number, values=[num_cores, num_memslices]
+        final HashMap<Long, List<Long>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
+
+        final long numNodes = scheduler.numNodes();
+        long minCoresPerNode = scheduler.coreCapacityForNode(1L);
+        for (long i = 2; i <= numNodes; i++) {
+            final long nodeCapacity = scheduler.coreCapacityForNode(i);
+            if (nodeCapacity < minCoresPerNode) {
+                minCoresPerNode = nodeCapacity;
+            }
+        }
+        long minMemslicesPerNode = scheduler.memsliceCapacityForNode(1L);
+        for (long i = 2; i <= numNodes; i++) {
+            final long nodeCapacity = scheduler.memsliceCapacityForNode(i);
+            if (nodeCapacity < minMemslicesPerNode) {
+                minMemslicesPerNode = nodeCapacity;
+            }
+        }
+
+        // Assume this is SingleStep fill. Chunk as much as possible (up to 1/2 node
+        // capabity)
+        for (final Map.Entry<Long, List<Long>> entry : appAllocMap.entrySet()) {
+            final long application = entry.getKey();
+            final long cores = entry.getValue().get(0);
+            final long memslices = entry.getValue().get(1);
+
+            // Generate core requests
+            long totalCoresToRequest = cores;
+            while (totalCoresToRequest > 0) {
+                final long coresInRequest;
+                if (totalCoresToRequest > minCoresPerNode / 2) {
+                    coresInRequest = minCoresPerNode / 2;
+                } else {
+                    coresInRequest = totalCoresToRequest;
+                }
+                scheduler.generateRequest(null, coresInRequest, 0, application);
+                totalCoresToRequest -= coresInRequest;
+            }
+
+            // Generate memslices requests
+            long totalMemslicesToRequest = memslices;
+            while (totalMemslicesToRequest > 0) {
+                final long memslicesInRequest;
+                if (totalMemslicesToRequest > minMemslicesPerNode / 2) {
+                    memslicesInRequest = minMemslicesPerNode / 2;
+                } else {
+                    memslicesInRequest = totalMemslicesToRequest;
+                }
+                scheduler.generateRequest(null, 0, memslicesInRequest, application);
+                totalMemslicesToRequest -= memslicesInRequest;
+            }
+        }
+
+        // Use the solver to assign the resources
+        scheduler.runSolverAndUpdateDB(false);
+        checkFill(coreAllocs, memsliceAllocs);
+    }
+
+        /**
+     * Fill the cluster to a certain utilization percentage by generating requests
+     * based on a
+     * Poisson distribution. There may be some error where the cluster utilization
+     * isn't perfectly met.
+     * 
+     * @param clusterUtil  target cluster utilization
+     * @param coreMean     the mean cluster-wide core requests per solve step
+     * @param memsliceMean the mean cluster-wide memslice requests per solve step
+     */
+    public void fillPoisson(final int clusterUtil, final double coreMean, final double memsliceMean) throws Exception {
+        assert scheduler.usedCores() == 0;
+        assert scheduler.usedMemslices() == 0;
         
-        final Option schedulerOption = Option.builder("s")
-            .longOpt(SCHEDULER_OPTION).argName(SCHEDULER_OPTION)
-            .hasArg()
-            .desc(String.format("scheduler (DCMloc | DCMcap | R | RR).%nDefault: %s", 
-                    SCHEDULER_DEFAULT))
-            .type(String.class)
-            .build();
+        // Determine the number of both resources to allocate based on clusterUtil
+        final long targetCoreAllocs = coresForUtil(clusterUtil);
+        final long targetMemsliceAllocs = memslicesForUtil(clusterUtil);
 
-        // Set number of applications (processes)
-        final Option numAppsOption = Option.builder("p")
-                .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
-                .hasArg()
-                .desc(String.format("number of applications running on the cluster.%nDefault: %d", NUM_APPS_DEFAULT))
-                .type(Integer.class)
-                .build();
-        
-        // Set batch size
-        final Option allocsPerStepOption = Option.builder("a")
-                .longOpt(ALLOCS_PER_STEP_OPTION).argName(ALLOCS_PER_STEP_OPTION)
-                .hasArg()
-                .desc(String.format("number of new allocations per step (batch size).%nDefault: %d", 
-                        ALLOCS_PER_STEP_DEFAULT))
-                .type(Integer.class)
-                .build();
-        
-        // Set random seed
-        final Option randomSeedOption = Option.builder("r")
-                .longOpt(RANDOM_SEED_OPTION).argName(RANDOM_SEED_OPTION)
-                .hasArg()
-                .desc(String.format("Optional: seed for random."))
-                .type(Integer.class)
-                .build();
+        final double perAppCoreMean = coreMean / numApps;
+        final double perAppMemsliceMean = memsliceMean / numApps;
 
-        options.addOption(helpOption);
-        options.addOption(numNodesOption);
-        options.addOption(coresPerNodeOption);
-        options.addOption(memslicesPerNodeOption);
-        options.addOption(clusterUtilOption);
-        options.addOption(clusterFillOption);
-        options.addOption(schedulerOption);
-        options.addOption(numAppsOption);
-        options.addOption(allocsPerStepOption);
-        options.addOption(randomSeedOption);
+        int allocatedCores = 0;
+        int allocatedMemslices = 0;
+        int numSolves = 0;
+        while (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs) {
+            // Generate requests for cores and memslices.
+            // TODO: not sure if should give all applications a chance or okay to just give
+            // some?
+            for (long i = 1; i <= numApps &&
+                    (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs); i++) {
 
-        final CommandLineParser parser = new DefaultParser();
-        try {
-            final CommandLine cmd = parser.parse(options, args);
-            if (cmd.hasOption("h")) {
-                // automatically generate the help statement
-                print_help(options);
-                return;
-            }
-            if (cmd.hasOption(NUM_NODES_OPTION)) {
-                numNodes = Integer.parseInt(cmd.getOptionValue(NUM_NODES_OPTION));
-                if (numNodes <= 0) {
-                    log.error("Number of nodes must be > 0");
-                    print_help(options);
-                    return;
+                if (allocatedCores < targetCoreAllocs) {
+                    final int coresToAlloc = (int) rand.nextPoisson(perAppCoreMean);
+                    for (int j = 0; j < coresToAlloc; j++) {
+                        scheduler.generateRequest(null, 1L, 0L, i);
+                    }
+                    allocatedCores += coresToAlloc;
+                }
+
+                if (allocatedMemslices < targetMemsliceAllocs) {
+                    final int memslicesToAlloc = (int) rand.nextPoisson(perAppMemsliceMean);
+                    for (int j = 0; j < memslicesToAlloc; j++) {
+                        scheduler.generateRequest(null, 0L, 1L, i);
+                    }
+                    allocatedMemslices += memslicesToAlloc;
                 }
             }
-            if (cmd.hasOption(CORES_PER_NODE_OPTION)) {
-                coresPerNode = Integer.parseInt(cmd.getOptionValue(CORES_PER_NODE_OPTION));                
-                if (coresPerNode <= 0) {
-                    log.error("Cores per node must be > 0");
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(MEMSLICES_PER_NODE_OPTION)) {
-                memslicesPerNode = Integer.parseInt(cmd.getOptionValue(MEMSLICES_PER_NODE_OPTION));
-                if (memslicesPerNode <= 0) {
-                    log.error("Memslices per node must be > 0");
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(CLUSTER_UTILIZATION_OPTION)) {
-                clusterUtil = Integer.parseInt(cmd.getOptionValue(CLUSTER_UTILIZATION_OPTION));
-                if (clusterUtil < 0 || clusterUtil > 100) {
-                    log.error("Cluster utilization must be in [0, 100] (a valid percentage)");
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(CLUSTER_FILL_OPTION)) {
-                clusterFill = cmd.getOptionValue(CLUSTER_FILL_OPTION).toLowerCase();
-                if (!clusterFill.equals("random") && !clusterFill.equals("singlestep") && 
-                        !clusterFill.equals("poisson")) {
-                    log.error("Cluster fill must be 'random'|'singlestep'|'poisson' but is '{}'", clusterFill);
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(SCHEDULER_OPTION)) {
-                scheduler = cmd.getOptionValue(SCHEDULER_OPTION);
-                if (!scheduler.equals("DCMloc") && !scheduler.equals("DCMcap") && 
-                        !scheduler.equals("R") && !scheduler.equals("RR")) {
-                    log.error("Scheduler must be (case sensitive) 'DCMloc'|'DCMcap'|'R'|'RR' but is '{}'",
-                        scheduler);
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(NUM_APPS_OPTION)) {
-                numApps = Integer.parseInt(cmd.getOptionValue(NUM_APPS_OPTION));
-                if (numApps <= 0) {
-                    log.error("Number of applications must be > 0");
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(ALLOCS_PER_STEP_OPTION)) {
-                allocsPerStep = Integer.parseInt(cmd.getOptionValue(ALLOCS_PER_STEP_OPTION));
-                if (allocsPerStep <= 0) {
-                    log.error("Allocations per step (batch size) must be > 0");
-                    print_help(options);
-                    return;
-                }
-            }
-            if (cmd.hasOption(RANDOM_SEED_OPTION)) {
-                randomSeed = Integer.parseInt(cmd.getOptionValue(RANDOM_SEED_OPTION));
-            }
-        } catch (final ParseException ignored) {
-            log.error("Failed to parse command line");
-            return;
+
+            // Now solve all requests from this round
+            scheduler.runSolverAndUpdateDB(false);
+            numSolves += 1;
         }
 
-        // Create an in-memory database and get a JOOQ connection to it, and fill according to args
-        Class.forName("org.h2.Driver");
-        final DSLContext conn = DSL.using("jdbc:h2:mem:");
+        // Check that we got what we wanted
+        checkFill(allocatedCores, allocatedMemslices);
 
-        final DCMRunner runner = new DCMRunner(conn, numNodes, coresPerNode, memslicesPerNode, numApps, 
-                randomSeed, true, false);
-        System.out.println(String.format("Simulation setup: scheduler=%s, nodes=%d, coresPerNode=%d, " + 
-                "memSlicesPerNode=%d, numApps=%d, clusterUtil=%d, clusterFill=%s, allocsPerStep=%d, randomSeed=%d",
-                scheduler, numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
-                randomSeed));
+        LOG.warn("Poisson fill completed in {} steps (coreMean={}, memsliceMean={})", 
+                numSolves, coreMean, memsliceMean);
 
-        // Step to popular the cluster
-        if (clusterFill.equals("random")) {
-            runner.fillRandom(clusterUtil);
-        } else if (clusterFill.equals("singlestep")) {
-            runner.fillSingleStep(clusterUtil);
-        } else if (clusterFill.equals("poisson")) {
-            final double coreMean = Math.ceil(0.10 * ((double) coresPerNode));
-            final double memsliceMean = Math.ceil(0.10 * ((double) memslicesPerNode));
-            runner.fillPoisson(clusterUtil, coreMean, memsliceMean);
+        if (targetCoreAllocs != allocatedCores) {
+            LOG.warn("Poisson fill did not exactly meet target cluster util." +
+                    " Core error is {} cores ({}% of total cores)",
+                    targetCoreAllocs - allocatedCores,
+                    (float) Math.abs(targetCoreAllocs - allocatedCores) / (float) scheduler.coreCapacity());
         }
-
-        // Add a random request
-        for (int i = 0; i < allocsPerStep; i++) {
-            runner.generateRandomRequest();
+        if (targetMemsliceAllocs != allocatedMemslices) {
+            LOG.warn("Poisson fill did not exactly meet target cluster util. " +
+                    "Memslice error is {} memslices ({}% of total memslices)",
+                    targetMemsliceAllocs - allocatedMemslices,
+                    (float) Math.abs(targetMemsliceAllocs - allocatedMemslices) / (float) scheduler.memsliceCapacity());
         }
-
-        // Solve and update accordingly
-        if (!runner.runModelAndUpdateDB(true)) {
-            log.warn("No updates from running model???");
-            System.exit(-1);
-        }
-
-        // Check for violations
-        if (runner.checkForCapacityViolation()) {
-            log.warn("Failed due to capacity violation??");
-            System.exit(-1);
-        }
-
-        // Print final stats
-        runner.printStats();
-        log.info("Simulation complete");
     }
 }

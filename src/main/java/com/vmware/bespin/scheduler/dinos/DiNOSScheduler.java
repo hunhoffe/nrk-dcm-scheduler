@@ -1,24 +1,25 @@
+package com.vmware.bespin.scheduler.dinos;
+
 /*
  * Copyright 2022 VMware, Inc. All Rights Reserved.
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
-
 import com.vmware.bespin.rpc.RPCClient;
 import com.vmware.bespin.rpc.RPCServer;
 import com.vmware.bespin.rpc.TCPClient;
 import com.vmware.bespin.rpc.TCPServer;
-
-import com.vmware.bespin.scheduler.rpc.RPCID;
-import com.vmware.bespin.scheduler.rpc.RegisterNodeHandler;
-import com.vmware.bespin.scheduler.rpc.AllocHandler;
-import com.vmware.bespin.scheduler.rpc.ReleaseHandler;
-import com.vmware.bespin.scheduler.rpc.AffinityAllocHandler;
-import com.vmware.bespin.scheduler.rpc.AffinityReleaseHandler;
-import com.vmware.dcm.ModelException;
+import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.dinos.rpc.AffinityAllocHandler;
+import com.vmware.bespin.scheduler.dinos.rpc.AffinityReleaseHandler;
+import com.vmware.bespin.scheduler.dinos.rpc.AllocHandler;
+import com.vmware.bespin.scheduler.dinos.rpc.RPCID;
+import com.vmware.bespin.scheduler.dinos.rpc.RegisterNodeHandler;
+import com.vmware.bespin.scheduler.dinos.rpc.ReleaseHandler;
 import com.vmware.dcm.SolverException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketException;
 
-public class SchedulerRunner extends DCMRunner {
+public class DiNOSScheduler extends Scheduler {
     private final int maxReqsPerSolve;
     private final long maxTimePerSolve;
     private final long pollInterval;
@@ -36,14 +37,13 @@ public class SchedulerRunner extends DCMRunner {
     private final int clientPort;
     private RPCClient rpcClient;
 
-    SchedulerRunner(final DSLContext conn, final int numNodes, final int coresPerNode, 
-            final int memslicesPerNode, final int numApps, final Integer randomSeed, 
-            final boolean useCapFunc, final boolean usePrintDiagnostics, final int maxReqsPerSolve, 
-            final long maxTimePerSolve, final long pollInterval, final InetAddress ip, 
-            final int serverPort, final int clientPort) 
-    throws SocketException {
+    protected Logger LOG = LogManager.getLogger(DiNOSScheduler.class);
 
-        super(conn, numNodes, coresPerNode, memslicesPerNode, numApps, randomSeed, useCapFunc, false);
+    DiNOSScheduler(final DSLContext conn, final int maxReqsPerSolve, final long maxTimePerSolve, 
+            final long pollInterval, final InetAddress ip, final int serverPort, final int clientPort,
+            final DiNOSSolver solver) throws SocketException {
+
+        super(conn, solver);
 
         this.maxReqsPerSolve = maxReqsPerSolve;
         this.maxTimePerSolve = maxTimePerSolve;
@@ -52,24 +52,22 @@ public class SchedulerRunner extends DCMRunner {
         this.serverPort = serverPort;
         this.clientPort = clientPort;
 
-        LOG.info("Running scheduler with parameters: useCapFunction={}, maxReqsPerSolve={}, " +
-            "maxTimePerSolve={}, pollInterval={}",
-            useCapFunc, maxReqsPerSolve, maxTimePerSolve, pollInterval);
+        LOG.info("Running scheduler with parameters: maxReqsPerSolve={}, maxTimePerSolve={}, " +
+                "pollInterval={}", maxReqsPerSolve, maxTimePerSolve, pollInterval);
     }
 
     @Override
-    public boolean runModelAndUpdateDB(final boolean printTimingData) throws IOException {
+    public boolean runSolverAndUpdateDB(final boolean printTimingData) throws IOException {
         final Result<? extends Record> results;
         final long start = System.currentTimeMillis();
         final long solveFinish;
         try {
-            results = model.solve("PENDING");
+            results = solver.solve(conn);
             solveFinish = System.currentTimeMillis();
-        } catch (ModelException | SolverException e) {
+        } catch (final SolverException e) {
             LOG.error(e);
             //if (this.getNumPendingRequests() > 0) {
-            // Notify requests they were not feasible. Drop them from the pending table.
-            // TOOD: FIX THIS, FIX THIS, FIX THIS
+                // TOOD: Notify requests they were not feasible. Drop them from the pending table.
             //}
             return false;
         }
@@ -89,52 +87,50 @@ public class SchedulerRunner extends DCMRunner {
             final Integer memslices = (Integer) r.get("MEMSLICES");
             final Integer application = (Integer) r.get("APPLICATION");
 
-             updateAllocation(controllableNode, application, cores, memslices);
-             conn.deleteFrom(PENDING_TABLE)
-                     .where(PENDING_TABLE.ID.eq(recordId))
-                     .execute();
+            updateAllocation(controllableNode, application, cores, memslices);
+            conn.deleteFrom(PENDING_TABLE)
+                    .where(PENDING_TABLE.ID.eq(recordId))
+                    .execute();
 
             final SchedulerAssignment assignment = new SchedulerAssignment(recordId, controllableNode.longValue());
-            LOG.warn("Assigning alloc_id {} cores={} memslices={} to node {}", 
-                    recordId, cores, memslices, controllableNode.longValue());
+            LOG.warn("Assigning alloc_id {} cores={} memslices={} to node {}", recordId, cores, memslices, 
+                    controllableNode.longValue());
             this.rpcClient.call(RPCID.ALLOC_ASSIGNMENT, assignment.toBytes());
         }
         
         final long updateFinish = System.currentTimeMillis();
         if (printTimingData) {
-             System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", 
-                    solveFinish - start, updateFinish - start));
+            System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", solveFinish - start, 
+                    updateFinish - start));
         }
         return true;
     }
 
     public void run(final boolean printTimingData) throws InterruptedException, IOException {
-
-        final Runnable rpcRunner =
-                () -> {
-                    try {
-                        LOG.info("RPCServer thread started");
-                        final RPCServer<DCMRunner> rpcServer = new TCPServer<DCMRunner>("172.31.0.20", this.serverPort);
-                        LOG.info("Created server");
-                        rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
-                        rpcServer.register(RPCID.ALLOC, new AllocHandler());
-                        rpcServer.register(RPCID.RELEASE, new ReleaseHandler());
-                        rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler());
-                        rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
-                        LOG.info("Registered handlers");
-                        rpcServer.addClient();
-                        LOG.info("Server added client");
-                        this.rpcClient = new TCPClient(this.ip, this.clientPort);
-                        LOG.info("Added RPC client");
-                        this.rpcClient.connect();
-                        LOG.info("Connected RPC client");
-                        rpcServer.runServer(this);
-                    } catch (final IOException e) {
-                        LOG.error("RPCServer thread failed");
-                        LOG.error(e);
-                        throw new RuntimeException();
-                    }
-                };
+        final Runnable rpcRunner = () -> {
+            try {
+                LOG.info("RPCServer thread started");
+                final RPCServer<Scheduler> rpcServer = new TCPServer<Scheduler>("172.31.0.20", this.serverPort);
+                LOG.info("Created server");
+                rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
+                rpcServer.register(RPCID.ALLOC, new AllocHandler());
+                rpcServer.register(RPCID.RELEASE, new ReleaseHandler());
+                rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler());
+                rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
+                LOG.info("Registered handlers");
+                rpcServer.addClient();
+                LOG.info("Server added client");
+                this.rpcClient = new TCPClient(this.ip, this.clientPort);
+                LOG.info("Added RPC client");
+                this.rpcClient.connect();
+                LOG.info("Connected RPC client");
+                rpcServer.runServer(this);
+            } catch (final IOException e) {
+                LOG.error("RPCServer thread failed");
+                LOG.error(e);
+                throw new RuntimeException();
+            }
+        };
         final Thread thread = new Thread(rpcRunner);
         thread.start();
 
@@ -159,7 +155,7 @@ public class SchedulerRunner extends DCMRunner {
                         LOG.info(String.format("solver thread solving due to numRequests = %d", numRequests));
                     }
                     // Only actually solve if work to do, exit if solver error
-                    if (!runModelAndUpdateDB(printTimingData)) {
+                    if (!runSolverAndUpdateDB(printTimingData)) {
                         break;
                     }
                 }

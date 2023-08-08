@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler.rpc;
+package com.vmware.bespin.scheduler.dinos.rpc;
 
 import org.junit.jupiter.api.Test;
 

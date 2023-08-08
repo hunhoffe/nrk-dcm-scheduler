@@ -5,9 +5,10 @@
 
 package com.vmware.bespin.rpc;
 
-import com.vmware.bespin.scheduler.rpc.RPCID;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.vmware.bespin.scheduler.dinos.rpc.RPCID;
 
 import java.io.InputStream;
 import java.io.OutputStream;

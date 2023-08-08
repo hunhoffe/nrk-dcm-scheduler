@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler.rpc;
+package com.vmware.bespin.scheduler.dinos.rpc;
 
 public class RegisterNodeResponse {
      public static final int BYTE_LEN = 1;

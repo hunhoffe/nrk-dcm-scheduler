@@ -90,7 +90,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.vmware.bespin.scheduler.Scheduler</mainClass>
+                            <mainClass>com.vmware.bespin.scheduler.dinos.DiNOSScheduler</mainClass>
 		        </manifest>
                         <manifestEntries>
                           <Class-Path>.</Class-Path>

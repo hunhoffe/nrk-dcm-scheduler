@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.scheduler.dinos;
 
+import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.DBUtils;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.SolverException;
 import com.vmware.dcm.backend.ortools.OrToolsSolver;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
-import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -19,29 +20,27 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-public class TestConstraints {
+public class TestDiNOSConstraints {
     @Test
     public void testPlacedConstraint() throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
-        Model model = Model.build(conn, b.build(), List.of(Constraints.getPlacedConstraint().sql()));
+        Model model = Model.build(conn, b.build(), List.of(DiNOSConstraints.getPlacedConstraint().sql()));
 
         // two nodes with 1 core, 1 memslice each
-        runner.addNode(1, 1, 1);
-        runner.addNode(2, 1, 1);
+        scheduler.addNode(1, 1, 1);
+        scheduler.addNode(2, 1, 1);
         // one application
-        runner.addApplication(1);
+        scheduler.addApplication(1);
         // create 2 pending allocation
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // one placed pending allocation
         conn.execute("insert into pending values(3, 1, 1, 1, 'PLACED', 1, 1)");
@@ -73,82 +72,80 @@ public class TestConstraints {
     @Test
     public void testCapacity() throws ClassNotFoundException {
         capacityTestWithPlaced(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getSpareView().sql(),
-                Constraints.getCapacityConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getSpareView().sql(),
+                DiNOSConstraints.getCapacityConstraint().sql()));
 
         capacityTestWithoutPlaced(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getSpareView().sql(),
-                Constraints.getCapacityConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getSpareView().sql(),
+                DiNOSConstraints.getCapacityConstraint().sql()));
     }
 
     @Test
     public void testLoadBalance() throws ClassNotFoundException {
         loadBalanceTest(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getSpareView().sql(),
-                Constraints.getCapacityConstraint().sql(),
-                Constraints.getLoadBalanceCoreConstraint().sql(),
-                Constraints.getLoadBalanceMemsliceConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getSpareView().sql(),
+                DiNOSConstraints.getCapacityConstraint().sql(),
+                DiNOSConstraints.getLoadBalanceCoreConstraint().sql(),
+                DiNOSConstraints.getLoadBalanceMemsliceConstraint().sql()));
     }
 
     @Test
     public void testCapacityFunction() throws ClassNotFoundException {
         capacityTestWithPlaced(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getCapacityFunctionCoreConstraint().sql(),
-                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         capacityTestWithoutPlaced(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getCapacityFunctionCoreConstraint().sql(),
-                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         loadBalanceTest(List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getCapacityFunctionCoreConstraint().sql(),
-                Constraints.getCapacityFunctionMemsliceConstraint().sql()));
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
     }
 
     @Test
     public void testAppLocality() throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getCapacityFunctionCoreConstraint().sql(),
-                Constraints.getCapacityFunctionMemsliceConstraint().sql(),
-                Constraints.getAppLocalityPlacedConstraint().sql(),
-                Constraints.getAppLocalityPendingConstraint().sql()
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql(),
+                DiNOSConstraints.getAppLocalityPlacedConstraint().sql(),
+                DiNOSConstraints.getAppLocalityPendingConstraint().sql()
         ));
 
         // three nodes with two cores, two memslices each
-        runner.addNode(1, 4, 4);
-        runner.addNode(2, 4, 4);
-        runner.addNode(3, 4, 4);
+        scheduler.addNode(1, 4, 4);
+        scheduler.addNode(2, 4, 4);
+        scheduler.addNode(3, 4, 4);
 
         // add applications
-        runner.addApplication(1);
-        runner.addApplication(2);
+        scheduler.addApplication(1);
+        scheduler.addApplication(2);
 
         // place a memslice from application 1 on node 2
-        runner.updateAllocation(2, 1, 0, 1);
+        scheduler.updateAllocation(2, 1, 0, 1);
 
         // place a memslice from application 2 on node 1 for confusion
-        runner.updateAllocation(1, 2, 0, 1);
+        scheduler.updateAllocation(1, 2, 0, 1);
 
         // create 2 pending allocations - will check to see if they are placed on node 2
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -168,40 +165,38 @@ public class TestConstraints {
     @Test
     public void testAppLocalitySingle() throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                Constraints.getPlacedConstraint().sql(),
-                Constraints.getCapacityFunctionCoreConstraint().sql(),
-                Constraints.getCapacityFunctionMemsliceConstraint().sql(),
-                Constraints.getAppLocalitySingleConstraint().sql()
+                DiNOSConstraints.getPlacedConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
+                DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql(),
+                DiNOSConstraints.getAppLocalitySingleConstraint().sql()
         ));
 
         // three nodes with two cores, two memslices each
-        runner.addNode(1, 4, 4);
-        runner.addNode(2, 4, 4);
-        runner.addNode(3, 4, 4);
+        scheduler.addNode(1, 4, 4);
+        scheduler.addNode(2, 4, 4);
+        scheduler.addNode(3, 4, 4);
 
         // one application
-        runner.addApplication(1);
-        runner.addApplication(2);
+        scheduler.addApplication(1);
+        scheduler.addApplication(2);
 
         // place a memslice from application 1 on node 2
-        runner.updateAllocation(2, 1, 0, 1);
+        scheduler.updateAllocation(2, 1, 0, 1);
 
         // place a memslice from application 2 on node 1 for confusion
-        runner.updateAllocation(1, 2, 0, 1);
+        scheduler.updateAllocation(1, 2, 0, 1);
 
         // create 2 pending allocations - will check to see if they are placed on node 2
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -219,10 +214,8 @@ public class TestConstraints {
 
     private void capacityTestWithPlaced(List<String> constraints) throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -231,21 +224,21 @@ public class TestConstraints {
         Model model = Model.build(conn, b.build(), constraints);
 
         // two nodes with 1 core, 1 memslice each
-        runner.addNode(1, 2, 2);
-        runner.addNode(2, 2, 2);
+        scheduler.addNode(1, 2, 2);
+        scheduler.addNode(2, 2, 2);
 
         // one application
-        runner.addApplication(1);
+        scheduler.addApplication(1);
 
         // placed work
-        runner.updateAllocation(1, 1, 1, 1);
-        runner.updateAllocation(2, 1, 1, 1);
+        scheduler.updateAllocation(1, 1, 1, 1);
+        scheduler.updateAllocation(2, 1, 1, 1);
 
         // create enough pending allocations to fill all capacity
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 0, 1, 1);
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -283,7 +276,7 @@ public class TestConstraints {
         assertEquals(1, twoMemslice.get());
 
         // now add a pending allocation we don't have space for
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         try {
@@ -296,10 +289,8 @@ public class TestConstraints {
 
     private void capacityTestWithoutPlaced(List<String> constraints) throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        final DCMRunner runner = new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -308,17 +299,17 @@ public class TestConstraints {
         Model model = Model.build(conn, b.build(), constraints);
 
         // two nodes with 1 core, 1 memslice each
-        runner.addNode(1, 1, 1);
-        runner.addNode(2, 1, 1);
+        scheduler.addNode(1, 1, 1);
+        scheduler.addNode(2, 1, 1);
 
         // one application
-        runner.addApplication(1);
+        scheduler.addApplication(1);
 
         // create enough pending allocations to fill all capacity
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 1, 0, 1);
-        runner.generateRequest(null, 0, 1, 1);
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 1, 0, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         Result<? extends Record> results = model.solve("PENDING");
@@ -357,7 +348,7 @@ public class TestConstraints {
 
         // now add a pending allocation we don't have space for
         //conn.execute("insert into pending values(5, 1, 0, 1, 'PENDING', null, null)");
-        runner.generateRequest(null, 0, 1, 1);
+        scheduler.generateRequest(null, 0, 1, 1);
 
         // run model and check result
         try {
@@ -370,10 +361,7 @@ public class TestConstraints {
 
     private void loadBalanceTest(List<String> constraints) throws ClassNotFoundException {
         // Create database
-        Class.forName("org.h2.Driver");
-        DSLContext conn = DSL.using("jdbc:h2:mem:");
-        new DCMRunner(conn, 0, 0, 0, 
-            0, 0, false, false);
+        DSLContext conn = DBUtils.getConn();
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
