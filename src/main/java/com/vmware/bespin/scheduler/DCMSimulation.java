@@ -45,8 +45,7 @@ public class DCMSimulation {
 
     private static void print_help(final Options options) {
         final HelpFormatter formatter = new HelpFormatter();
-        formatter.printHelp("java -jar -Dlog4j.configurationFile=src/main/resources/log4j2.xml " +
-                        "target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
+        formatter.printHelp("java -jar target/scheduler-1.1.16-SNAPSHOT-jar-with-dependencies.jar [options]",
                 options);
     }
 
@@ -223,10 +222,10 @@ public class DCMSimulation {
 
         final DCMRunner runner = new DCMRunner(conn, numNodes, coresPerNode, memslicesPerNode, numApps, 
                 randomSeed, true, false);
-        log.info("Simulation setup: nodes={}, coresPerNode={}, memSlicesPerNode={} numApps={}, " +
-                "clusterUtil={}, clusterFill={}, allocsPerStep={}, randomSeed={}",
+        System.out.println(String.format("Simulation setup: nodes=%d, coresPerNode=%d, memSlicesPerNode=%d, " +
+                "numApps=%d, clusterUtil=%d, clusterFill=%s, allocsPerStep=%d, randomSeed=%d",
                 numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
-                randomSeed);
+                randomSeed));
 
         // Step to popular the cluster
         if (clusterFill.equals("random")) {
@@ -234,11 +233,8 @@ public class DCMSimulation {
         } else if (clusterFill.equals("singlestep")) {
             runner.fillSingleStep(clusterUtil);
         } else if (clusterFill.equals("poisson")) {
-            // TODO: I don't know if these means make sense at all
-            final double coreMean = Math.ceil(10 * 
-                    ((double) coresPerNode / ((double) (coresPerNode + memslicesPerNode))));
-            final double memsliceMean = Math.ceil(10 * 
-                    ((double) memslicesPerNode / ((double) (coresPerNode + memslicesPerNode))));
+            final double coreMean = Math.ceil(0.10 * ((double) coresPerNode));
+            final double memsliceMean = Math.ceil(0.10 * ((double) memslicesPerNode));
             runner.fillPoisson(clusterUtil, coreMean, memsliceMean);
         }
 

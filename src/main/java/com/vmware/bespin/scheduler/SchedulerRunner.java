@@ -94,7 +94,6 @@ public class SchedulerRunner extends DCMRunner {
                      .where(PENDING_TABLE.ID.eq(recordId))
                      .execute();
 
-            // TODO: send rpc to server.
             final SchedulerAssignment assignment = new SchedulerAssignment(recordId, controllableNode.longValue());
             LOG.warn("Assigning alloc_id {} cores={} memslices={} to node {}", 
                     recordId, cores, memslices, controllableNode.longValue());
@@ -103,7 +102,8 @@ public class SchedulerRunner extends DCMRunner {
         
         final long updateFinish = System.currentTimeMillis();
         if (printTimingData) {
-             LOG.info("SOLVE_RESULTS: solve={}ms, solve_update={}ms", solveFinish - start, updateFinish - start);
+             System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", 
+                    solveFinish - start, updateFinish - start));
         }
         return true;
     }

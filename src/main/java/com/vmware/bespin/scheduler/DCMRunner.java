@@ -531,8 +531,11 @@ public class DCMRunner {
         // print application statistics
         System.out.println("Application resources grouped by node: ");;
         for (int i = 1; i <= numApps(); i++) {
-            LOG.info("FRAGMENTATION_PROCESS: app={}, num_nodes={}", i, nodesForApplication(i));
+            System.out.println(String.format("FRAGMENTATION_PROCESS: app=%d, num_nodes=%d", i, nodesForApplication(i)));
         }
+
+        System.out.println("Placed Resources:");
+        System.out.println(conn.fetch("select * from placed"));
     }
 
     /**
@@ -814,7 +817,8 @@ public class DCMRunner {
         });
         final long updateFinish = System.currentTimeMillis();
         if (printTimingData) {
-            LOG.info("SOLVE_RESULTS: solve={}ms, solve_update={}ms", solveFinish - start, updateFinish - start);
+            System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", 
+                    solveFinish - start, updateFinish - start));
         }
         return true;
     }
@@ -1047,7 +1051,7 @@ public class DCMRunner {
         // Check that we got what we wanted
         checkFill(allocatedCores, allocatedMemslices);
 
-        LOG.info("Poisson fill completed in {} steps (coreMean={}, memsliceMean={})", 
+        LOG.warn("Poisson fill completed in {} steps (coreMean={}, memsliceMean={})", 
                 numSolves, coreMean, memsliceMean);
 
         if (targetCoreAllocs != allocatedCores) {
