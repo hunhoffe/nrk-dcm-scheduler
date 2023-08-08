@@ -32,6 +32,10 @@ public class DCMSimulation {
     private static final String CLUSTER_FILL_OPTION = "clusterFill";
     private static final String CLUSTER_FILL_DEFAULT = "random";
 
+    // Which scheduler to use
+    private static final String SCHEDULER_OPTION = "scheduler";
+    private static final String SCHEDULER_DEFAULT = "DCMloc";
+
     // Number of processes
     private static final String NUM_APPS_OPTION = "numApps";
     private static final int NUM_APPS_DEFAULT = 20;
@@ -58,6 +62,7 @@ public class DCMSimulation {
         int memslicesPerNode = MEMSLICES_PER_NODE_DEFAULT;
         int clusterUtil = CLUSTER_UTILIZATION_DEFAULT;
         String clusterFill = CLUSTER_FILL_DEFAULT;
+        String scheduler = SCHEDULER_DEFAULT;
         int numApps = NUM_APPS_DEFAULT;
         int allocsPerStep = ALLOCS_PER_STEP_DEFAULT;
         Integer randomSeed = null;
@@ -103,11 +108,19 @@ public class DCMSimulation {
         final Option clusterFillOption = Option.builder("f")
             .longOpt(CLUSTER_FILL_OPTION).argName(CLUSTER_FILL_OPTION)
             .hasArg()
-            .desc(String.format("cluster fill menthod (random | singlestep | poisson).%nDefault: %s", 
+            .desc(String.format("cluster fill method (random | singlestep | poisson).%nDefault: %s", 
                     CLUSTER_FILL_DEFAULT))
             .type(String.class)
             .build();
         
+        final Option schedulerOption = Option.builder("s")
+            .longOpt(SCHEDULER_OPTION).argName(SCHEDULER_OPTION)
+            .hasArg()
+            .desc(String.format("scheduler (DCMloc | DCMcap | R | RR).%nDefault: %s", 
+                    SCHEDULER_DEFAULT))
+            .type(String.class)
+            .build();
+
         // Set number of applications (processes)
         final Option numAppsOption = Option.builder("p")
                 .longOpt(NUM_APPS_OPTION).argName(NUM_APPS_OPTION)
@@ -139,6 +152,7 @@ public class DCMSimulation {
         options.addOption(memslicesPerNodeOption);
         options.addOption(clusterUtilOption);
         options.addOption(clusterFillOption);
+        options.addOption(schedulerOption);
         options.addOption(numAppsOption);
         options.addOption(allocsPerStepOption);
         options.addOption(randomSeedOption);
@@ -192,6 +206,16 @@ public class DCMSimulation {
                     return;
                 }
             }
+            if (cmd.hasOption(SCHEDULER_OPTION)) {
+                scheduler = cmd.getOptionValue(SCHEDULER_OPTION);
+                if (!scheduler.equals("DCMloc") && !scheduler.equals("DCMcap") && 
+                        !scheduler.equals("R") && !scheduler.equals("RR")) {
+                    log.error("Scheduler must be (case sensitive) 'DCMloc'|'DCMcap'|'R'|'RR' but is '{}'",
+                        scheduler);
+                    print_help(options);
+                    return;
+                }
+            }
             if (cmd.hasOption(NUM_APPS_OPTION)) {
                 numApps = Integer.parseInt(cmd.getOptionValue(NUM_APPS_OPTION));
                 if (numApps <= 0) {
@@ -222,9 +246,9 @@ public class DCMSimulation {
 
         final DCMRunner runner = new DCMRunner(conn, numNodes, coresPerNode, memslicesPerNode, numApps, 
                 randomSeed, true, false);
-        System.out.println(String.format("Simulation setup: nodes=%d, coresPerNode=%d, memSlicesPerNode=%d, " +
-                "numApps=%d, clusterUtil=%d, clusterFill=%s, allocsPerStep=%d, randomSeed=%d",
-                numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
+        System.out.println(String.format("Simulation setup: scheduler=%s, nodes=%d, coresPerNode=%d, " + 
+                "memSlicesPerNode=%d, numApps=%d, clusterUtil=%d, clusterFill=%s, allocsPerStep=%d, randomSeed=%d",
+                scheduler, numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, clusterFill, allocsPerStep, 
                 randomSeed));
 
         // Step to popular the cluster
