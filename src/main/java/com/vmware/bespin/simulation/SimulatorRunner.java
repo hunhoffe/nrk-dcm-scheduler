@@ -240,9 +240,20 @@ public class SimulatorRunner {
             return;
         }
 
-        // Create an in-memory database and get a JOOQ connection to it, and fill according to args
+        // Create an in-memory database and get a JOOQ connection to it
         final DSLContext conn = DBUtils.getConn();
-        final Solver solver = new DiNOSSolver(conn, true, true, false);
+
+        // Choose the scheduler
+        Solver solver = null;
+        if (scheduler.equals("DCMcap")) {
+            solver = new DiNOSSolver(conn, true, false, false);
+        } else if (scheduler.equals("DCMloc")) {
+            solver = new DiNOSSolver(conn, true, false, false);
+        } else  {
+            System.err.println("Scheudler type not supported yet.");
+            System.exit(-1);
+        }
+
         final Scheduler sched = new Scheduler(conn, solver);
         System.out.println(String.format("Simulation setup: scheduler=%s, nodes=%d, coresPerNode=%d, " + 
                 "memSlicesPerNode=%d, numApps=%d, clusterUtil=%d, clusterFill=%s, allocsPerStep=%d, randomSeed=%d",
@@ -252,7 +263,7 @@ public class SimulatorRunner {
         final Simulation simulation = new Simulation(conn, sched, randomSeed, numNodes, coresPerNode, memslicesPerNode, 
                 numApps);
 
-        // Step to popular the cluster
+        // Populate the cluster
         if (clusterFill.equals("random")) {
             simulation.fillRandom(clusterUtil);
         } else if (clusterFill.equals("singlestep")) {
@@ -263,15 +274,21 @@ public class SimulatorRunner {
             simulation.fillPoisson(clusterUtil, coreMean, memsliceMean);
         }
 
-        // Add a random request
-        for (int i = 0; i < allocsPerStep; i++) {
-            simulation.generateRandomRequest();
-        }
+        if (clusterFill.equals("poisson")) {
+            final double coreMean = Math.ceil(0.10 * ((double) coresPerNode));
+            final double memsliceMean = Math.ceil(0.10 * ((double) memslicesPerNode));
+            simulation.stepPoisson(coreMean, true, memsliceMean, true, true);
+        } else {
+            // Add a random request
+            for (int i = 0; i < allocsPerStep; i++) {
+                simulation.generateRandomRequest();
+            }
 
-        // Solve and update accordingly
-        if (!sched.runSolverAndUpdateDB(true)) {
-            log.warn("No updates from running model???");
-            System.exit(-1);
+            // Solve and update accordingly
+            if (!sched.runSolverAndUpdateDB(true)) {
+                log.warn("No updates from running model???");
+                System.exit(-1);
+            }
         }
 
         // Check for violations

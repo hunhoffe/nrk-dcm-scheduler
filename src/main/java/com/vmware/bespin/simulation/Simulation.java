@@ -308,7 +308,7 @@ public class Simulation {
         checkFill(coreAllocs, memsliceAllocs);
     }
 
-        /**
+    /**
      * Fill the cluster to a certain utilization percentage by generating requests
      * based on a
      * Poisson distribution. There may be some error where the cluster utilization
@@ -326,39 +326,15 @@ public class Simulation {
         final long targetCoreAllocs = coresForUtil(clusterUtil);
         final long targetMemsliceAllocs = memslicesForUtil(clusterUtil);
 
-        final double perAppCoreMean = coreMean / numApps;
-        final double perAppMemsliceMean = memsliceMean / numApps;
-
-        int allocatedCores = 0;
-        int allocatedMemslices = 0;
+        long allocatedCores = scheduler.usedCores();
+        long allocatedMemslices = scheduler.usedMemslices();
         int numSolves = 0;
         while (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs) {
-            // Generate requests for cores and memslices.
-            // TODO: not sure if should give all applications a chance or okay to just give
-            // some?
-            for (long i = 1; i <= numApps &&
-                    (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs); i++) {
-
-                if (allocatedCores < targetCoreAllocs) {
-                    final int coresToAlloc = (int) rand.nextPoisson(perAppCoreMean);
-                    for (int j = 0; j < coresToAlloc; j++) {
-                        scheduler.generateRequest(null, 1L, 0L, i);
-                    }
-                    allocatedCores += coresToAlloc;
-                }
-
-                if (allocatedMemslices < targetMemsliceAllocs) {
-                    final int memslicesToAlloc = (int) rand.nextPoisson(perAppMemsliceMean);
-                    for (int j = 0; j < memslicesToAlloc; j++) {
-                        scheduler.generateRequest(null, 0L, 1L, i);
-                    }
-                    allocatedMemslices += memslicesToAlloc;
-                }
-            }
-
-            // Now solve all requests from this round
-            scheduler.runSolverAndUpdateDB(false);
+            stepPoisson(coreMean, allocatedCores < targetCoreAllocs, memsliceMean,
+                    allocatedMemslices < targetMemsliceAllocs, false);
             numSolves += 1;
+            allocatedCores = scheduler.usedCores();
+            allocatedMemslices = scheduler.usedMemslices();
         }
 
         // Check that we got what we wanted
@@ -379,5 +355,50 @@ public class Simulation {
                     targetMemsliceAllocs - allocatedMemslices,
                     (float) Math.abs(targetMemsliceAllocs - allocatedMemslices) / (float) scheduler.memsliceCapacity());
         }
+    }
+
+    /**
+     * Fill the cluster to a certain utilization percentage by generating requests
+     * based on a
+     * Poisson distribution. There may be some error where the cluster utilization
+     * isn't perfectly met.
+     * 
+     * @param coreMean     the mean cluster-wide core requests per solve step
+     * @param allocCores   if the step should include core requests
+     * @param memsliceMean the mean cluster-wide memslice requests per solve step
+     * @param allocMemslices if the step should include memslice requests
+     * @param printTimingData print timing data of the solve
+     */
+    public void stepPoisson(final double coreMean, final boolean allocCores, final double memsliceMean, 
+            final boolean allocMemslices, final boolean printTimingData) throws Exception {        
+        final double appMean = numApps / 2;
+
+        final long availableCores = scheduler.coreCapacity() - scheduler.usedCores();
+        final long availableMemslices = scheduler.memsliceCapacity() - scheduler.usedMemslices();
+        
+        // Choose an application to make the request
+        long application = (long) rand.nextPoisson(appMean);
+        while (application == 0 || application > numApps) {
+            application = (long) rand.nextPoisson(appMean);
+        }
+
+        // Generate requests for cores
+        if (allocCores) {
+            final long coresToAlloc = Math.min(availableCores, (long) rand.nextPoisson(coreMean));
+            for (long j = 0; j < coresToAlloc; j++) {
+                scheduler.generateRequest(null, 1L, 0L, application);
+            }
+        }
+
+        // Generate requests for memslices
+        if (allocMemslices) {
+            final long memslicesToAlloc = Math.min(availableMemslices, (long) rand.nextPoisson(memsliceMean));
+            for (long j = 0; j < memslicesToAlloc; j++) {
+                scheduler.generateRequest(null, 0L, 1L, application);
+            }
+        }
+
+        // Now solve all requests from this round
+        scheduler.runSolverAndUpdateDB(printTimingData);
     }
 }
