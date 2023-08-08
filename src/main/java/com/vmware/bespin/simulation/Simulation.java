@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.simulation;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -17,7 +17,9 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.impl.DSL;
 
-public class DCMSimulation {
+import com.vmware.bespin.scheduler.DCMRunner;
+
+public class Simulation {
     // Cluster Size
     private static final String NUM_NODES_OPTION = "numNodes";
     private static final int NUM_NODES_DEFAULT = 64;
@@ -67,7 +69,7 @@ public class DCMSimulation {
         int allocsPerStep = ALLOCS_PER_STEP_DEFAULT;
         Integer randomSeed = null;
 
-        final Logger log = LogManager.getLogger(DCMSimulation.class);
+        final Logger log = LogManager.getLogger(Simulation.class);
 
         // create Options object
         final Options options = new Options();
