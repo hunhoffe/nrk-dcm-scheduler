@@ -1,7 +1,7 @@
 #!/bin/bash
 
 JAR_PATH="../target/scheduler-1.1.16-SNAPSHOT-jar-with-dependencies.jar"
-MAIN_CLASS="com.vmware.bespin.simulation.Simulation"
+MAIN_CLASS="com.vmware.bespin.simulation.SimulatorRunner"
 
 ITERS_PER_TEST=20
 BATCH_SIZES=(1)
@@ -17,7 +17,7 @@ NUM_CONFIGS=${#MACHINE_CONFIGS[@]}
 RACK_UTILS=(10 50 90)
 RACK_FILL="poisson"
 
-SCHEDULERS="R RR DCMcap"
+SCHEDULERS="DCMCap"
 # SCHEDULERS="R RR DCMcap DCMloc"
 
 # Create output dir or bail
