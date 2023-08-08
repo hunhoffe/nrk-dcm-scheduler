@@ -30,13 +30,13 @@ public class Simulation {
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
     protected Logger LOG = LogManager.getLogger(Simulation.class);
-    protected static Scheduler scheduler;
-    protected static DSLContext conn;
+    protected Scheduler scheduler;
+    protected DSLContext conn;
     protected final RandomDataGenerator rand;
-    protected int numApps;
+    protected long numApps;
 
     public Simulation(final DSLContext conn, final Scheduler scheduler, final Integer randomSeed, 
-            final int numNodes, final int coresPerNode, final int memslicesPerNode, final int numApps) {
+            final long numNodes, final long coresPerNode, final long memslicesPerNode, final long numApps) {
         // Argument validation
         assert numNodes >= 0;
         assert coresPerNode >= 0;
@@ -124,14 +124,14 @@ public class Simulation {
 
         // Assign cores to applications
         for (long i = 0; i < coreAllocs; i++) {
-            final long application = rand.nextInt(1, numApps);
+            final long application = rand.nextLong(1, numApps);
             final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
         }
 
         // Assign memslices to applications
         for (long i = 0; i < memsliceAllocs; i++) {
-            final long application = rand.nextInt(1, numApps);
+            final long application = rand.nextLong(1, numApps);
             final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
         }
