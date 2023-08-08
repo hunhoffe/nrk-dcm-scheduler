@@ -7,7 +7,7 @@ package com.vmware.bespin.rpc;
 
 import java.io.IOException;
 
-import com.vmware.bespin.scheduler.rpc.RPCID;
+import com.vmware.bespin.scheduler.dinos.rpc.RPCID;
  
 /// RPC server operations
 public abstract class RPCClient {

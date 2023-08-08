@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: BSD-2 OR MIT
  */
 
-package com.vmware.bespin.scheduler;
+package com.vmware.bespin.scheduler.dinos;
 
-public class Constraints {
+public class DiNOSConstraints {
     public static Constraint getPlacedConstraint() {
         // Only PENDING core requests are placed
         // All DCM solvers need to have this constraint
