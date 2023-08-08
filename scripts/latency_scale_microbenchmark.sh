@@ -1,7 +1,7 @@
 #!/bin/bash
 
 JAR_PATH="../target/scheduler-1.1.16-SNAPSHOT-jar-with-dependencies.jar"
-MAIN_CLASS="com.vmware.bespin.scheduler.DCMSimulation"
+MAIN_CLASS="com.vmware.bespin.simulation.Simulation"
 
 ITERS_PER_TEST=20
 BATCH_SIZES=(1)
