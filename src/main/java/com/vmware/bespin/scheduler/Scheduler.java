@@ -397,7 +397,7 @@ public class Scheduler {
      * 
      * @return pendingRequests the number of pending requests
      */
-    protected long[] getPendingRequestIDs() {
+    public long[] getPendingRequestIDs() {
         final String sql = "select id from pending";
         long[] pendingIds = {};
         final Result<Record> pendingIdResults = conn.fetch(sql);
