@@ -17,7 +17,7 @@ NUM_CONFIGS=${#MACHINE_CONFIGS[@]}
 RACK_UTILS=(10 50 90)
 RACK_FILL="poisson"
 
-SCHEDULERS="DCMCap"
+SCHEDULERS="DCMcap DCMloc"
 # SCHEDULERS="R RR DCMcap DCMloc"
 
 # Create output dir or bail

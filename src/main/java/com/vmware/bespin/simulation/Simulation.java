@@ -34,6 +34,8 @@ public class Simulation {
     protected DSLContext conn;
     protected final RandomDataGenerator rand;
     protected long numApps;
+    protected long coresPerNode;
+    protected long memslicesPerNode;
 
     public Simulation(final DSLContext conn, final Scheduler scheduler, final Integer randomSeed, 
             final long numNodes, final long coresPerNode, final long memslicesPerNode, final long numApps) {
@@ -53,6 +55,8 @@ public class Simulation {
         this.scheduler = scheduler;
         this.conn = conn;
         this.numApps = numApps;
+        this.coresPerNode = coresPerNode;
+        this.memslicesPerNode = memslicesPerNode;
 
         if (randomSeed == null) {
             this.rand = new RandomDataGenerator();
@@ -310,8 +314,7 @@ public class Simulation {
 
     /**
      * Fill the cluster to a certain utilization percentage by generating requests
-     * based on a
-     * Poisson distribution. There may be some error where the cluster utilization
+     * based on a Poisson distribution. There may be some error where the cluster utilization
      * isn't perfectly met.
      * 
      * @param clusterUtil  target cluster utilization
@@ -359,8 +362,7 @@ public class Simulation {
 
     /**
      * Fill the cluster to a certain utilization percentage by generating requests
-     * based on a
-     * Poisson distribution. There may be some error where the cluster utilization
+     * based on a Poisson distribution. There may be some error where the cluster utilization
      * isn't perfectly met.
      * 
      * @param coreMean     the mean cluster-wide core requests per solve step
@@ -370,11 +372,8 @@ public class Simulation {
      * @param printTimingData print timing data of the solve
      */
     public void stepPoisson(final double coreMean, final boolean allocCores, final double memsliceMean, 
-            final boolean allocMemslices, final boolean printTimingData) throws Exception {        
+            final boolean allocMemslices, final boolean printTimingData) throws Exception {       
         final double appMean = numApps / 2;
-
-        final long availableCores = scheduler.coreCapacity() - scheduler.usedCores();
-        final long availableMemslices = scheduler.memsliceCapacity() - scheduler.usedMemslices();
         
         // Choose an application to make the request
         long application = (long) rand.nextPoisson(appMean);
@@ -384,16 +383,22 @@ public class Simulation {
 
         // Generate requests for cores
         if (allocCores) {
-            final long coresToAlloc = Math.min(availableCores, (long) rand.nextPoisson(coreMean));
-            for (long j = 0; j < coresToAlloc; j++) {
+            // Ensure we don't overfill the cluster
+            final long coresToAlloc = Math.min(scheduler.coreCapacity() - scheduler.usedCores(), 
+                    (long) rand.nextPoisson(coreMean));
+            // Generate as individual requests
+            for (int i = 0; i < coresToAlloc; i++) {
                 scheduler.generateRequest(null, 1L, 0L, application);
             }
         }
 
         // Generate requests for memslices
         if (allocMemslices) {
-            final long memslicesToAlloc = Math.min(availableMemslices, (long) rand.nextPoisson(memsliceMean));
-            for (long j = 0; j < memslicesToAlloc; j++) {
+            // Ensure we don't overfill the cluster
+            final long memslicesToAlloc = Math.min(scheduler.memsliceCapacity() - scheduler.usedMemslices(), 
+                    (long) rand.nextPoisson(memsliceMean));
+            // Generate as individual requests
+            for (int i = 0; i < memslicesToAlloc; i++) {
                 scheduler.generateRequest(null, 0L, 1L, application);
             }
         }

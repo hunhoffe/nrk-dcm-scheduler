@@ -263,20 +263,19 @@ public class SimulatorRunner {
         final Simulation simulation = new Simulation(conn, sched, randomSeed, numNodes, coresPerNode, memslicesPerNode, 
                 numApps);
 
+        final double coreMean = Math.ceil(0.05 * ((double) coresPerNode));
+        final double memsliceMean = Math.ceil(0.05 * ((double) memslicesPerNode));
+
         // Populate the cluster
         if (clusterFill.equals("random")) {
             simulation.fillRandom(clusterUtil);
         } else if (clusterFill.equals("singlestep")) {
             simulation.fillSingleStep(clusterUtil);
         } else if (clusterFill.equals("poisson")) {
-            final double coreMean = Math.ceil(0.10 * ((double) coresPerNode));
-            final double memsliceMean = Math.ceil(0.10 * ((double) memslicesPerNode));
             simulation.fillPoisson(clusterUtil, coreMean, memsliceMean);
         }
 
         if (clusterFill.equals("poisson")) {
-            final double coreMean = Math.ceil(0.10 * ((double) coresPerNode));
-            final double memsliceMean = Math.ceil(0.10 * ((double) memslicesPerNode));
             simulation.stepPoisson(coreMean, true, memsliceMean, true, true);
         } else {
             // Add a random request
