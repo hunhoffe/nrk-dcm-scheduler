@@ -100,6 +100,52 @@ public class Simulation {
     }
 
     /**
+     * Generate a random request.
+     * 
+     * Determine if it's for a core or memslice in proportion to that resource.
+     * Choose an application at uniform random.
+     */
+    public void generateRandomRequest() {
+        final long totalResources = scheduler.coreCapacity() + scheduler.memsliceCapacity();
+
+        // Select an application at random
+        final long application = this.chooseRandomApplication();
+
+        // Determine if core or memslice, randomly chosen but weighted by capacity
+        int cores = 0;
+        int memslices = 0;
+        if (rand.nextLong(1, totalResources) < scheduler.coreCapacity()) {
+            cores = 1;
+        } else {
+            memslices = 1;
+        }
+        scheduler.generateRequest(null, cores, memslices, application);
+    }
+
+    /**
+     * Select an application based on a Gaussian distribution.
+     * 
+     * @return application the application selected
+     */
+    protected long chooseGaussianApplication() {
+        final double appMean = numApps / 2;
+        final double appStdev = numApps / 6;
+        int count = 0;
+        
+        // Choose an application to make the request
+        long application = Math.round(rand.nextGaussian(appMean, appStdev));
+        while (application == 0 || application > numApps) {
+            application = Math.round(rand.nextGaussian(appMean, appStdev));
+            count++;
+            if (count > 100) {
+                System.out.println("ERROR(SPINNING): TRIED TO GENERATE AN APPLICATION ID 100 TIMES");
+                System.exit(-1);
+            }
+        }
+        return application;
+    }
+
+    /**
      * Determine the number of memslices that must be allocated to reach a target
      * cluster utilization
      * 
@@ -140,29 +186,6 @@ public class Simulation {
             appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
         }
         return appAllocMap;
-    }
-
-    /**
-     * Generate a random request.
-     * 
-     * Determine if it's for a core or memslice in proportion to that resource.
-     * Choose an application at uniform random.
-     */
-    public void generateRandomRequest() {
-        final long totalResources = scheduler.coreCapacity() + scheduler.memsliceCapacity();
-
-        // Select an application at random
-        final long application = this.chooseRandomApplication();
-
-        // Determine if core or memslice, randomly chosen but weighted by capacity
-        int cores = 0;
-        int memslices = 0;
-        if (rand.nextLong(1, totalResources) < scheduler.coreCapacity()) {
-            cores = 1;
-        } else {
-            memslices = 1;
-        }
-        scheduler.generateRequest(null, cores, memslices, application);
     }
 
     /**
@@ -237,80 +260,6 @@ public class Simulation {
         checkFill(coreAllocs, memsliceAllocs);
     }
 
-    /**
-     * Fill the cluster to a certain utilization percentage by generating random
-     * requests to the pending table, and then running the solver.
-     * 
-     * The requests are split by memslices and cores, and also so no one request
-     * exceeds 1/2 node capacity.
-     * 
-     * @param clusterUtil target cluster utilization
-     */
-    public void fillSingleStep(final int clusterUtil) throws Exception {
-        assert scheduler.usedCores() == 0;
-        assert scheduler.usedMemslices() == 0;
-
-        // Determine the number of both resources to allocate based on clusterUtil
-        final long coreAllocs = coresForUtil(clusterUtil);
-        final long memsliceAllocs = memslicesForUtil(clusterUtil);
-
-        // Format of key=application number, values=[num_cores, num_memslices]
-        final HashMap<Long, List<Long>> appAllocMap = generateAllocMap(coreAllocs, memsliceAllocs);
-
-        final long numNodes = scheduler.numNodes();
-        long minCoresPerNode = scheduler.coreCapacityForNode(1L);
-        for (long i = 2; i <= numNodes; i++) {
-            final long nodeCapacity = scheduler.coreCapacityForNode(i);
-            if (nodeCapacity < minCoresPerNode) {
-                minCoresPerNode = nodeCapacity;
-            }
-        }
-        long minMemslicesPerNode = scheduler.memsliceCapacityForNode(1L);
-        for (long i = 2; i <= numNodes; i++) {
-            final long nodeCapacity = scheduler.memsliceCapacityForNode(i);
-            if (nodeCapacity < minMemslicesPerNode) {
-                minMemslicesPerNode = nodeCapacity;
-            }
-        }
-
-        // Assume this is SingleStep fill. Chunk as much as possible (up to 1/2 node
-        // capabity)
-        for (final Map.Entry<Long, List<Long>> entry : appAllocMap.entrySet()) {
-            final long application = entry.getKey();
-            final long cores = entry.getValue().get(0);
-            final long memslices = entry.getValue().get(1);
-
-            // Generate core requests
-            long totalCoresToRequest = cores;
-            while (totalCoresToRequest > 0) {
-                final long coresInRequest;
-                if (totalCoresToRequest > minCoresPerNode / 2) {
-                    coresInRequest = minCoresPerNode / 2;
-                } else {
-                    coresInRequest = totalCoresToRequest;
-                }
-                scheduler.generateRequest(null, coresInRequest, 0, application);
-                totalCoresToRequest -= coresInRequest;
-            }
-
-            // Generate memslices requests
-            long totalMemslicesToRequest = memslices;
-            while (totalMemslicesToRequest > 0) {
-                final long memslicesInRequest;
-                if (totalMemslicesToRequest > minMemslicesPerNode / 2) {
-                    memslicesInRequest = minMemslicesPerNode / 2;
-                } else {
-                    memslicesInRequest = totalMemslicesToRequest;
-                }
-                scheduler.generateRequest(null, 0, memslicesInRequest, application);
-                totalMemslicesToRequest -= memslicesInRequest;
-            }
-        }
-
-        // Use the solver to assign the resources
-        scheduler.runSolverAndUpdateDB(false);
-        checkFill(coreAllocs, memsliceAllocs);
-    }
 
     /**
      * Fill the cluster to a certain utilization percentage by generating requests
@@ -338,6 +287,11 @@ public class Simulation {
             numSolves += 1;
             allocatedCores = scheduler.usedCores();
             allocatedMemslices = scheduler.usedMemslices();
+
+            if (numSolves > 1000) {
+                System.out.println("ERROR(SPINNING): FILL POISSON STEPPED 1000 TIMES");
+                System.exit(-1);
+            }
         }
 
         // Check that we got what we wanted
@@ -373,33 +327,36 @@ public class Simulation {
      */
     public void stepPoisson(final double coreMean, final boolean allocCores, final double memsliceMean, 
             final boolean allocMemslices, final boolean printTimingData) throws Exception {       
-        final double appMean = numApps / 2;
-        
-        // Choose an application to make the request
-        long application = (long) rand.nextPoisson(appMean);
-        while (application == 0 || application > numApps) {
-            application = (long) rand.nextPoisson(appMean);
-        }
+        long coresToAlloc = 0;
+        long memslicesToAlloc = 0;
+        int count = 0;
 
         // Generate requests for cores
-        if (allocCores) {
-            // Ensure we don't overfill the cluster
-            final long coresToAlloc = Math.min(scheduler.coreCapacity() - scheduler.usedCores(), 
-                    (long) rand.nextPoisson(coreMean));
-            // Generate as individual requests
-            for (int i = 0; i < coresToAlloc; i++) {
-                scheduler.generateRequest(null, 1L, 0L, application);
+        while (coresToAlloc == 0 && memslicesToAlloc == 0) {
+            if (allocCores) {
+                // Ensure we don't overfill the cluster
+                coresToAlloc = Math.min(scheduler.coreCapacity() - scheduler.usedCores(), 
+                        rand.nextPoisson(coreMean));
+                // Generate as individual requests
+                for (int i = 0; i < coresToAlloc; i++) {
+                    scheduler.generateRequest(null, 1L, 0L, chooseGaussianApplication());
+                }
             }
-        }
 
-        // Generate requests for memslices
-        if (allocMemslices) {
-            // Ensure we don't overfill the cluster
-            final long memslicesToAlloc = Math.min(scheduler.memsliceCapacity() - scheduler.usedMemslices(), 
-                    (long) rand.nextPoisson(memsliceMean));
-            // Generate as individual requests
-            for (int i = 0; i < memslicesToAlloc; i++) {
-                scheduler.generateRequest(null, 0L, 1L, application);
+            // Generate requests for memslices
+            if (allocMemslices) {
+                // Ensure we don't overfill the cluster
+                memslicesToAlloc = Math.min(scheduler.memsliceCapacity() - scheduler.usedMemslices(), 
+                        rand.nextPoisson(memsliceMean));
+                // Generate as individual requests
+                for (int i = 0; i < memslicesToAlloc; i++) {
+                    scheduler.generateRequest(null, 0L, 1L, chooseGaussianApplication());
+                }
+            }
+            count++;
+            if (count > 100) {
+                System.out.println("ERROR(SPINNING): TRIED TO MAKE PROGRESS IN POISSON STEP 100 TIMES");
+                System.exit(-1);
             }
         }
 
