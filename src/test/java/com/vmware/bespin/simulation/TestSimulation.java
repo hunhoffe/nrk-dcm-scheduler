@@ -81,6 +81,28 @@ public class TestSimulation {
     }
 
     @Test
+    public void testChooseGaussianApplication() throws ClassNotFoundException {
+        final long NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 100;
+
+        // Create database
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+
+        // Check number of applications
+        for (int i = 0; i < 100000; i++) {
+            final long randomApp = sim.chooseGaussianApplication();
+            assert(randomApp >= 1 && randomApp <= NUM_APPS);
+        }
+
+        // Check number of applications
+        assertEquals(scheduler.numApps(), NUM_APPS);
+    }
+
+    @Test
     public void testCoresForUtil() throws ClassNotFoundException {
         final long NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
@@ -295,15 +317,15 @@ public class TestSimulation {
     public void testFillPoissonUtil() throws Exception {
         final long NUM_NODES = 10;
         final long CORES_PER_NODE = 10;
-        final long MEMSLICES_PER_NODE = 20;
-        final long NUM_APPS = 10;
+        final long MEMSLICES_PER_NODE = 64;
+        final long NUM_APPS = 4*NUM_NODES;
 
         // Test randomness of fill per node.
         int aggregate_core_fill = 0;
         int aggregate_memslice_fill = 0;
 
         final long ITERS = 10;
-        final int FILL_UTIL = 50;
+        final int FILL_UTIL = 90;
 
         // Assume mean requests is for 20% of the cluster per step. This is set high
         // to reduce the number of steps needed to meet the fill.

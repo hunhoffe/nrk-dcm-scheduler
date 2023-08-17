@@ -6,7 +6,7 @@ MAIN_CLASS="com.vmware.bespin.simulation.SimulatorRunner"
 ITERS_PER_TEST=20
 
 # The lengths of all the config arrays need to be the same
-MACHINE_CONFIGS=(4 8 16 32)
+MACHINE_CONFIGS=(4 8 16 16)
 CORE_CONFIGS=(16 32 64 128)
 MEMSLICE_CONFIGS=(128 256 512 1024)
 # The number of different rack test configurations to run
