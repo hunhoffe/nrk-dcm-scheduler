@@ -134,7 +134,7 @@ public class Simulation {
         
         // Choose an application to make the request
         long application = Math.round(rand.nextGaussian(appMean, appStdev));
-        while (application == 0 || application > numApps) {
+        while (application <= 0 || application > numApps) {
             application = Math.round(rand.nextGaussian(appMean, appStdev));
             count++;
             if (count > 100) {
