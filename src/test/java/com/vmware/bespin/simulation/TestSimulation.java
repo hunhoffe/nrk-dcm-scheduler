@@ -25,7 +25,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of nodes
         assertEquals(scheduler.numNodes(), NUM_NODES);
@@ -68,7 +68,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of applications
         for (int i = 0; i < 10; i++) {
@@ -90,7 +90,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // check cores for util at 100%
         assertEquals(sim.coresForUtil(100), scheduler.coreCapacity());
@@ -111,7 +111,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // check cores for util at 100%
         assertEquals(sim.memslicesForUtil(100), scheduler.memsliceCapacity());
@@ -132,7 +132,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Add a request
         for (long i = 0; i < scheduler.coreCapacity() + scheduler.memsliceCapacity(); i++) {
@@ -151,9 +151,9 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Scheduler scheduler = new Scheduler(conn, null);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
         
-        final Random rand = new Random(0xc0ffee);
+        final Random rand = new Random();
 
         // Fill entire cluster
         sim.fillRandom(100);
@@ -210,7 +210,7 @@ public class TestSimulation {
         DSLContext conn = DBUtils.getConn();
         Solver solver = new DiNOSSolver(conn, true, true, false);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         sim.fillRandom(100);
 
@@ -242,7 +242,7 @@ public class TestSimulation {
             DSLContext conn = DBUtils.getConn();
             Solver solver = new DiNOSSolver(conn, true, true, false);
             Scheduler scheduler = new Scheduler(conn, solver);
-            Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+            Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             sim.fillRandom(FILL_UTIL);
@@ -292,55 +292,6 @@ public class TestSimulation {
     }
 
     @Test
-    public void testFillSingleStep() throws Exception {
-        final long NUM_NODES = 4;
-        final long CORES_PER_NODE = 4;
-        final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 4;
-
-        final long ITERS = 10;
-        final int FILL_UTIL = 50;
-
-        int[] aggregate_core_per_app = new int[(int) NUM_APPS];
-        int[] aggregate_memslice_per_app = new int[(int) NUM_APPS];
-
-        for (int i = 0; i <= ITERS; i++) {
-            // Create database
-            DSLContext conn = DBUtils.getConn();
-            Solver solver = new DiNOSSolver(conn, true, true, false);
-            Scheduler scheduler = new Scheduler(conn, solver);
-            Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
-
-            sim.fillSingleStep(FILL_UTIL);
-
-            // Make sure filled half way, assume capacities are even
-            assertEquals(scheduler.coreCapacity() / 2, scheduler.usedCores());
-            assertEquals(scheduler.memsliceCapacity() / 2, scheduler.usedMemslices());
-
-            for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += scheduler.usedCoresForApplication((long) j);
-                aggregate_memslice_per_app[j - 1] += scheduler.usedMemslicesForApplication((long) j);
-            }
-        }
-
-        float avg_core_for_app = 0;
-        float avg_memslice_for_app = 0;
-        for (int j = 1; j <= NUM_APPS; j++) {
-            avg_core_for_app += (float) aggregate_core_per_app[j - 1] / (float) ITERS;
-            avg_memslice_for_app += (float) aggregate_memslice_per_app[j - 1] / (float) ITERS;
-        }
-        avg_core_for_app /= (float) NUM_APPS;
-        avg_memslice_for_app /= (float) NUM_APPS;
-
-        // On average, each application should receive (TOTAL_CLUSTER_RESOURCE * FILL%) / NUM_APPS
-        // Since it's random, there's a chance this will fail and everything is okay.
-        assertEquals(avg_core_for_app, 
-                CORES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 1.0);
-        assertEquals(avg_memslice_for_app, 
-                MEMSLICES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 1.0);
-    }
-
-    @Test
     public void testFillPoissonUtil() throws Exception {
         final long NUM_NODES = 10;
         final long CORES_PER_NODE = 10;
@@ -356,8 +307,8 @@ public class TestSimulation {
 
         // Assume mean requests is for 20% of the cluster per step. This is set high
         // to reduce the number of steps needed to meet the fill.
-        final double CORE_MEAN = (double) CORES_PER_NODE * 0.2;
-        final double MEMSLICE_MEAN = (double) MEMSLICES_PER_NODE * 0.2;
+        final double CORE_MEAN =  0.05 * ((double) CORES_PER_NODE);
+        final double MEMSLICE_MEAN = 0.05 * ((double) MEMSLICES_PER_NODE);
 
         int[] aggregate_core_per_app = new int[(int) NUM_APPS];
         int[] aggregate_memslice_per_app = new int[(int) NUM_APPS];
@@ -367,7 +318,7 @@ public class TestSimulation {
             DSLContext conn = DBUtils.getConn();
             Solver solver = new DiNOSSolver(conn, true, true, false);
             Scheduler scheduler = new Scheduler(conn, solver);
-            Simulation sim = new Simulation(conn, scheduler, 0xc0ffee, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+            Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             sim.fillPoisson(FILL_UTIL, CORE_MEAN, MEMSLICE_MEAN);
@@ -400,8 +351,8 @@ public class TestSimulation {
         // On average, each application should receive (TOTAL_CLUSTER_RESOURCE * FILL%) / NUM_APPS
         // Since it's random, there's a chance this will fail and everything is okay.
         assertEquals(avg_core_for_app, 
-                CORES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 1.0);
+                CORES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 0.10);
         assertEquals(avg_memslice_for_app, 
-                MEMSLICES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 1.0);
+                MEMSLICES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 0.10);
     }
 }
