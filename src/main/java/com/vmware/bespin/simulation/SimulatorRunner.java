@@ -204,7 +204,7 @@ public class SimulatorRunner {
         if (scheduler.equals("DCMcap")) {
             solver = new DiNOSSolver(conn, true, false, false);
         } else if (scheduler.equals("DCMloc")) {
-            solver = new DiNOSSolver(conn, true, false, false);
+            solver = new DiNOSSolver(conn, true, true, false);
         } else  {
             System.err.println("Scheudler type not supported yet.");
             System.exit(-1);
