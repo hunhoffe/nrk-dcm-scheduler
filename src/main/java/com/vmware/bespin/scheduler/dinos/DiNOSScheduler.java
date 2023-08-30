@@ -10,13 +10,13 @@ import com.vmware.bespin.rpc.RPCServer;
 import com.vmware.bespin.rpc.TCPClient;
 import com.vmware.bespin.rpc.TCPServer;
 import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityAllocHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityReleaseHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.AllocHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.RPCID;
 import com.vmware.bespin.scheduler.dinos.rpc.RegisterNodeHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.ReleaseHandler;
-import com.vmware.dcm.SolverException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

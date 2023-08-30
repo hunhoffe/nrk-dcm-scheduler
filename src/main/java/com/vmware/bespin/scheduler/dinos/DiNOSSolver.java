@@ -71,11 +71,11 @@ public class DiNOSSolver implements Solver {
      * Solve all outstanding requests in the pending table
      * 
      * @param conn database connection
-     * @return hasUpdates whether the model made any assignments
+     * @return records Records which were assigned by this call to solve.
      * @throws Exception this should never happen, but overriding subclasses may
      *                   throw errors.
      */
-    public Result<? extends Record> solve(final DSLContext conn) throws SolverException {
+    public Result<? extends org.jooq.Record> solve(final DSLContext conn) throws SolverException {
         try {
             return (Result<? extends Record>) model.solve("PENDING");
         } catch (ModelException | SolverException err) {

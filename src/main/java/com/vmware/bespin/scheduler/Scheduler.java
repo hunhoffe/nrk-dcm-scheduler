@@ -8,7 +8,6 @@ package com.vmware.bespin.scheduler;
 import com.vmware.bespin.scheduler.generated.tables.Applications;
 import com.vmware.bespin.scheduler.generated.tables.Nodes;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
-import com.vmware.dcm.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Placed;
 import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 

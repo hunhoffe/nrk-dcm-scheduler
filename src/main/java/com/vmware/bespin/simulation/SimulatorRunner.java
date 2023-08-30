@@ -206,7 +206,7 @@ public class SimulatorRunner {
         } else if (scheduler.equals("DCMloc")) {
             solver = new DiNOSSolver(conn, true, true, false);
         } else  {
-            System.err.println("Scheudler type not supported yet.");
+            System.err.println("Scheduler type not supported yet.");
             System.exit(-1);
         }
 
