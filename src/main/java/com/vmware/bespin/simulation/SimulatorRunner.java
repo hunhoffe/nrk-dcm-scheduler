@@ -205,7 +205,9 @@ public class SimulatorRunner {
             solver = new DiNOSSolver(conn, true, false, false);
         } else if (scheduler.equals("DCMloc")) {
             solver = new DiNOSSolver(conn, true, true, false);
-        } else  {
+        } else if (scheduler.equals("R")) {
+            solver = new RandomSolver(numNodes, coresPerNode, memslicesPerNode);
+        } else {
             System.err.println("Scheduler type not supported yet.");
             System.exit(-1);
         }
