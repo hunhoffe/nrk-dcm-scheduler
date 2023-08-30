@@ -14,10 +14,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 
-public class TestRandomSolver {
+public class TestRoundRobinSolver {
 
     @Test
-    public void testRandomSolverSingleSolve() throws ClassNotFoundException, SolverException {
+    public void testRoundRobinSolverSingleSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -26,7 +26,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -46,7 +46,7 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverMultiSolve() throws ClassNotFoundException, SolverException {
+    public void testRoundRobinSolverMultiSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -55,7 +55,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -77,7 +77,7 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverMultiStep() throws ClassNotFoundException, SolverException {
+    public void testRoundRobinSolverMultiStep() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -86,7 +86,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -108,7 +108,7 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverFillExact() throws ClassNotFoundException, SolverException {
+    public void testRoundRobinSolverFillExact() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -117,7 +117,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -156,7 +156,7 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverOverfill() throws ClassNotFoundException, SolverException {
+    public void testRoundRobinSolverOverfill() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -165,7 +165,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -212,7 +212,60 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testFillRandomSolverDistribution() throws Exception {
+    public void testRoundRobinSolverPlacement() throws ClassNotFoundException, SolverException {
+        final int NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+        final Pending PENDING_TABLE = Pending.PENDING;
+
+        // Create database
+        DSLContext conn = DBUtils.getConn();
+        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Scheduler scheduler = new Scheduler(conn, solver);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+
+        int corePlacementNumber = 0;
+        int memslicePlacementNumber = 0;
+
+        for (int i = 0; i < NUM_NODES; i++) {
+
+            for (int j = 0; j < CORES_PER_NODE; j++) {
+                scheduler.generateRequest(null, 1L, 0L, 1);
+
+                // Run solver and check result
+                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                assertEquals(1, results.size());
+
+                final PendingRecord pending = results.get(0).into(PENDING_TABLE);
+                final Integer controllableNode = pending.getControllable_Node();
+                assert controllableNode != null;
+                assertEquals((corePlacementNumber % NUM_NODES) + 1, controllableNode);
+
+                conn.execute("truncate table pending;");
+                corePlacementNumber++;
+            }
+
+            for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
+                scheduler.generateRequest(null, 0L, 1L, 1);
+
+                // Run solver and check result
+                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                assertEquals(1, results.size());
+
+                final PendingRecord pending = results.get(0).into(PENDING_TABLE);
+                final Integer controllableNode = pending.getControllable_Node();
+                assert controllableNode != null;
+                assertEquals((memslicePlacementNumber % NUM_NODES) + 1, controllableNode);
+
+                conn.execute("truncate table pending;");
+                memslicePlacementNumber++;
+            }
+        }
+    }
+
+    @Test
+    public void testFillRoundRobinSolverDistribution() throws Exception {
         final int NUM_NODES = 10;
         final long CORES_PER_NODE = 20;
         final long MEMSLICES_PER_NODE = 30;
@@ -232,7 +285,7 @@ public class TestRandomSolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 

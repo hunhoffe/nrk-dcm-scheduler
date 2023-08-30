@@ -100,7 +100,7 @@ public class SimulatorRunner {
         final Option schedulerOption = Option.builder("s")
             .longOpt(SCHEDULER_OPTION).argName(SCHEDULER_OPTION)
             .hasArg()
-            .desc(String.format("scheduler (DCMloc | DCMcap | R | RR).%nDefault: %s", 
+            .desc(String.format("scheduler (DCMloc | DCMcap | R | RR | Sticky).%nDefault: %s", 
                     SCHEDULER_DEFAULT))
             .type(String.class)
             .build();
@@ -173,8 +173,8 @@ public class SimulatorRunner {
             if (cmd.hasOption(SCHEDULER_OPTION)) {
                 scheduler = cmd.getOptionValue(SCHEDULER_OPTION);
                 if (!scheduler.equals("DCMloc") && !scheduler.equals("DCMcap") && 
-                        !scheduler.equals("R") && !scheduler.equals("RR")) {
-                    log.error("Scheduler must be (case sensitive) 'DCMloc'|'DCMcap'|'R'|'RR' but is '{}'",
+                        !scheduler.equals("R") && !scheduler.equals("RR") && !scheduler.equals("Sticky")) {
+                    log.error("Scheduler must be (case sensitive) 'DCMloc'|'DCMcap'|'R'|'RR'|'Sticky' but is '{}'",
                         scheduler);
                     print_help(options);
                     return;
@@ -207,6 +207,10 @@ public class SimulatorRunner {
             solver = new DiNOSSolver(conn, true, true, false);
         } else if (scheduler.equals("R")) {
             solver = new RandomSolver(numNodes, coresPerNode, memslicesPerNode);
+        } else if (scheduler.equals("RR")) {
+            solver = new RoundRobinSolver(numNodes, coresPerNode, memslicesPerNode);
+        } else if (scheduler.equals("Sticky")) {
+            solver = new StickySolver(numApps, numNodes, coresPerNode, memslicesPerNode);
         } else {
             System.err.println("Scheduler type not supported yet.");
             System.exit(-1);
