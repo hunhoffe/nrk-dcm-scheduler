@@ -1,5 +1,13 @@
 package com.vmware.bespin.simulation;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.fail;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.junit.jupiter.api.Test;
 
 import com.vmware.bespin.scheduler.DBUtils;
@@ -9,26 +17,21 @@ import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
 import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-import org.jooq.DSLContext;
-import org.jooq.Result;
-
-public class TestRandomSolver {
+public class TestStickySolver {
 
     @Test
-    public void testRandomSolverSingleSolve() throws ClassNotFoundException, SolverException {
+    public void testStickySolverSingleSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 5;
+        final int NUM_APPS = 5;
         final Pending PENDING_TABLE = Pending.PENDING;
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         // Generate a random request
         sim.generateRandomRequest();
@@ -46,18 +49,18 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverMultiSolve() throws ClassNotFoundException, SolverException {
+    public void testStickySolverMultiSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 5;
+        final int NUM_APPS = 5;
         final Pending PENDING_TABLE = Pending.PENDING;
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
             // Generate a random request
@@ -77,18 +80,18 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverMultiStep() throws ClassNotFoundException, SolverException {
+    public void testStickySolverMultiStep() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 5;
+        final int NUM_APPS = 5;
         final Pending PENDING_TABLE = Pending.PENDING;
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
             // Generate a random request
@@ -108,18 +111,18 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverFillExact() throws ClassNotFoundException, SolverException {
+    public void testStickySolverFillExact() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 5;
+        final int NUM_APPS = 5;
         final Pending PENDING_TABLE = Pending.PENDING;
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
 
@@ -156,18 +159,18 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testRandomSolverOverfill() throws ClassNotFoundException, SolverException {
+    public void testStickySolverOverfill() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
-        final long NUM_APPS = 5;
+        final int NUM_APPS = 5;
         final Pending PENDING_TABLE = Pending.PENDING;
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
-        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
 
@@ -212,11 +215,74 @@ public class TestRandomSolver {
     }
 
     @Test
-    public void testFillRandomSolverDistribution() throws Exception {
+    public void testStickySolverPlacement() throws ClassNotFoundException, SolverException {
+        final int NUM_NODES = 2;
+        final long CORES_PER_NODE = 3;
+        final long MEMSLICES_PER_NODE = 4;
+        final int NUM_APPS = 5;
+        final Pending PENDING_TABLE = Pending.PENDING;
+
+        // Create database
+        DSLContext conn = DBUtils.getConn();
+        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Scheduler scheduler = new Scheduler(conn, solver);
+        Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
+
+        Set<Integer> totalCoreNodeSet = new HashSet<Integer>();
+        Set<Integer> totalMemsliceNodeSet = new HashSet<Integer>();
+        for (int i = 0; i < NUM_NODES; i++) {
+
+            Set<Integer> nodeSet = new HashSet<Integer>();
+            for (int j = 0; j < CORES_PER_NODE; j++) {
+                scheduler.generateRequest(null, 1L, 0L, 1);
+
+                // Run solver and check result
+                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                assertEquals(1, results.size());
+
+                final PendingRecord pending = results.get(0).into(PENDING_TABLE);
+                final Integer controllableNode = pending.getControllable_Node();
+                assert controllableNode != null;
+                assert controllableNode >= 1 && controllableNode <= NUM_NODES;
+                nodeSet.add(controllableNode);
+                totalCoreNodeSet.add(controllableNode);
+
+                conn.execute("truncate table pending;");
+            }
+            // Should fill one node at a time.
+            assertEquals(1, nodeSet.size());
+
+            nodeSet = new HashSet<Integer>();
+            for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
+                scheduler.generateRequest(null, 0L, 1L, 1);
+
+                // Run solver and check result
+                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                assertEquals(1, results.size());
+
+                final PendingRecord pending = results.get(0).into(PENDING_TABLE);
+                final Integer controllableNode = pending.getControllable_Node();
+                assert controllableNode != null;
+                assert controllableNode >= 1 && controllableNode <= NUM_NODES;
+                nodeSet.add(controllableNode);
+                totalMemsliceNodeSet.add(controllableNode);
+
+                conn.execute("truncate table pending;");
+            }
+            // Should fill one node at a time.
+            assertEquals(1, nodeSet.size());
+
+            assertEquals(i + 1, totalCoreNodeSet.size());
+            assertEquals(i + 1, totalMemsliceNodeSet.size());
+        }
+    }
+
+    @Test
+    public void testFillStickySolverDistribution() throws Exception {
         final int NUM_NODES = 10;
         final long CORES_PER_NODE = 20;
         final long MEMSLICES_PER_NODE = 30;
-        final long NUM_APPS = 10;
+        final int NUM_APPS = 10;
 
         // Test randomness of fill per node.
         // Get the average of averages of number of cores on a node each iter.
@@ -232,9 +298,9 @@ public class TestRandomSolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
             Scheduler scheduler = new Scheduler(conn, solver);
-            Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+            Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             // Note that there is some error here, so it's possible the asserts below could fail and everything is okay.
@@ -283,4 +349,5 @@ public class TestRandomSolver {
         assertEquals(avg_memslice_for_app, 
                 MEMSLICES_PER_NODE * NUM_NODES * ((float) FILL_UTIL / 100.0) / (float) NUM_APPS, 1.0);
     }
+
 }

@@ -7,7 +7,6 @@ package com.vmware.bespin.simulation;
 
 import java.util.ArrayList;
 
-import org.apache.commons.math3.random.RandomDataGenerator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -18,9 +17,9 @@ import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
 import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 
-public class RandomSolver implements Solver {
+public class RoundRobinSolver implements Solver {
 
-    protected Logger LOG = LogManager.getLogger(RandomSolver.class);
+    protected Logger LOG = LogManager.getLogger(RoundRobinSolver.class);
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
     private int numNodes;
@@ -28,17 +27,17 @@ public class RandomSolver implements Solver {
     private ArrayList<Long> freeCores = new ArrayList<Long>();
     private ArrayList<Long> freeMemslices = new ArrayList<Long>();
 
-    private final RandomDataGenerator rand;
+    private int coreIndex = 0;
+    private int memsliceIndex = 0;
 
     /**
-     * Randomly assign requests for cores and memslices to nodes.
+     * Assign requests for cores and memslices to nodes in round-robin fashion.
      * @param numNodes the number of worker hosts in the cluster
      * @param coresPerNode the number of cores per worker host
-     * @param memscliesPerNode the number of memslices per worker host
+     * @param memslicesPerNode the number of memslices per worker host
      */
-    public RandomSolver(final int numNodes, final long coresPerNode, final long memslicesPerNode) {
+    public RoundRobinSolver(final int numNodes, final long coresPerNode, final long memslicesPerNode) {
         this.numNodes = numNodes;
-        this.rand = new RandomDataGenerator();
 
         for (int i = 0; i < this.numNodes; i++) {
             freeMemslices.add(memslicesPerNode);
@@ -70,45 +69,40 @@ public class RandomSolver implements Solver {
 
                 // Place the cores
                 if (coresToPlace > 0) {
-                    final ArrayList<Integer> options = new ArrayList<Integer>();
-                    for (int j = 0; j < freeCores.size(); j++) {
-                        if (freeCores.get(j) >= coresToPlace) {
-                            options.add(j);
+                    boolean placed = false;
+                    final int coreIndexStart = coreIndex;
+                    while (!placed) {
+                        final long freeCoresForNode = freeCores.get(coreIndex);
+                        if (freeCoresForNode >= coresToPlace) {
+                            freeCores.set(coreIndex, freeCoresForNode - coresToPlace);
+                            pending.setControllable_Node(coreIndex + 1);
+                            placed = true;
                         }
-                    }
-                    if (options.size() == 0) {
-                        throw new SolverException("Infeasible", null);
-                    }
-
-                    final int trialPlacement = rand.nextInt(0, options.size() - 1);
-                    final int coreIndex = options.get(trialPlacement);
-                    final long freeCoresForNode = freeCores.get(coreIndex);
-                    if (freeCoresForNode >= coresToPlace) {
-                        freeCores.set(coreIndex, freeCoresForNode - coresToPlace);
-                        pending.setControllable_Node(coreIndex + 1);
+                        coreIndex = (coreIndex + 1) % numNodes;
+                        if ((coreIndex == coreIndexStart) && !placed) {
+                            throw new SolverException("Infeasible", null);
+                        }
                     }
                 }
 
                 // Place the memslices
                 if (memslicesToPlace > 0) {
-                    final ArrayList<Integer> options = new ArrayList<Integer>();
-                    for (int j = 0; j < freeMemslices.size(); j++) {
-                        if (freeMemslices.get(j) >= memslicesToPlace) {
-                            options.add(j);
+                    boolean placed = false;
+                    final int memsliceIndexStart = memsliceIndex;
+                    while (!placed) {
+                        final long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
+                        if (freeMemslicesForNode >= memslicesToPlace) {
+                            freeMemslices.set(memsliceIndex, freeMemslicesForNode - memslicesToPlace);
+                            pending.setControllable_Node(memsliceIndex + 1);
+                            placed = true;
+                        }
+                        memsliceIndex = (memsliceIndex + 1) % numNodes;
+                        if ((memsliceIndex == memsliceIndexStart) && !placed) {
+                            throw new SolverException("Infeasible", null);
                         }
                     }
-                    if (options.size() == 0) {
-                        throw new SolverException("Infeasible", null);
-                    }
-
-                    final int trialPlacement = rand.nextInt(0, options.size() - 1);
-                    final int memsliceIndex = options.get(trialPlacement);
-                    final long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
-                    if (freeMemslicesForNode >= memslicesToPlace) {
-                        freeMemslices.set(memsliceIndex, freeMemslicesForNode - memslicesToPlace);
-                        pending.setControllable_Node(memsliceIndex + 1);
-                    }
                 }
+
                 pendingRequests.set(i, pending);
             }
         }
