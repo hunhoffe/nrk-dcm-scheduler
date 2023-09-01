@@ -62,7 +62,7 @@ public class DiNOSSolver implements Solver {
         final OrToolsSolver.Builder builder = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(usePrintDiagnostics)
                 .setUseCapacityPresenceLiterals(false)
-                .setMaxTimeInSeconds(300);
+                .setMaxTimeInSeconds(10);
 
         this.model = Model.build(conn, builder.build(), constraints);
     }
