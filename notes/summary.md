@@ -74,7 +74,9 @@ My indication of that is this error message:
 2023-09-06 07:44:54 WARN [TableRowGenerator{table=PENDING}, TableRowGenerator{table=UNALLOCATED}] are being iterated using nested for loops
 ```
 
-## DCMcap (cap = capacity only) Policies
+## Policies
+
+### DCMcap (cap = capacity only) Policies
 
 #### Placed Constraint
 ```sql
@@ -102,7 +104,7 @@ check capacity_constraint(pending.controllable__node, unallocated.node, pending.
   unallocated.memslices) = true
 ```
 
-## DCMloc (loc = cap + locality) Policies
+### DCMloc (loc = cap + locality) Policies
 
 #### Locality with placed resources constraint:
 ```sql
@@ -128,7 +130,7 @@ maximize
   ))
 ```
 
-## Unused Policies
+### Unused Policies
 
 #### Hand-written capacity constraint:
 ```sql
@@ -163,3 +165,9 @@ create constraint constraint_symmetry_breaking as
   group by application, cores, memslices
   check increasing(controllable__node) = true
 ```
+
+## Notes
+* Performance issue noted above
+* There's no weights
+  * perhaps for DCMloc, locality to placed should be prioritized vs. locality with pending?
+  * perhaps for locality, memslices vs. cores should be weighed according to the ratio between them?
