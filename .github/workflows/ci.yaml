@@ -20,11 +20,5 @@ jobs:
         distribution: 'adopt'
         cache: maven
 
-    - name: Install MiniZinc
-      run: |
-           wget https://github.com/MiniZinc/MiniZincIDE/releases/download/2.3.2/MiniZincIDE-2.3.2-bundle-linux-x86_64.tgz -O minizinc.tgz
-           tar -xzvf minizinc.tgz
-           rm minizinc.tgz
-
     - name: Build with Maven
       run: mvn clean --batch-mode --update-snapshots verify
