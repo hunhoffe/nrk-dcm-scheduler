@@ -281,7 +281,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new DiNOSSolver(conn, true, true, false);
+        Solver solver = new DiNOSSolver(conn, true, false);
         Scheduler scheduler = new Scheduler(conn, solver);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -509,7 +509,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new DiNOSSolver(conn, true, true, false);
+        Solver solver = new DiNOSSolver(conn, true, false);
         Scheduler scheduler = new Scheduler(conn, solver);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -574,7 +574,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new DiNOSSolver(conn, true, true, false);
+        Solver solver = new DiNOSSolver(conn, true, false);
         Scheduler scheduler = new Scheduler(conn, solver);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 

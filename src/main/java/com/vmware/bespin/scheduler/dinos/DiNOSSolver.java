@@ -29,35 +29,21 @@ public class DiNOSSolver implements Solver {
      * a cluster with
      * cores and memslices
      * @param conn The database connection.
-     * @param useCapFunc          if true, use capacity function in the DCM model.
-     *                            if false, use handwritten capacity
-     *                            and load balancing constraints
      * @param useLocalityConstraints if true, use locality constraints
      * @param usePrintDiagnostics set DCM to output print diagnostics
      */
-    public DiNOSSolver(final DSLContext conn, final boolean useCapFunc, final boolean useLocalityConstraints, 
-            final boolean usePrintDiagnostics) {
+    public DiNOSSolver(final DSLContext conn, final boolean useLocalityConstraints, final boolean usePrintDiagnostics) {
         final List<String> constraints = new ArrayList<>();
-        constraints.add(DiNOSConstraints.getPlacedConstraint().sql());
 
-        if (useCapFunc) {
-            // this will replace two above, and balance constraint below
-            constraints.add(DiNOSConstraints.getCapacityFunctionCoreConstraint().sql());
-            constraints.add(DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql());
-        } else {
-            constraints.add(DiNOSConstraints.getSpareView().sql());
-            constraints.add(DiNOSConstraints.getCapacityConstraint().sql());
-
-            // TODO: should scale because we're maximizing the sum cores_per_node ratio
-            // compared to memslices_per_node
-            constraints.add(DiNOSConstraints.getLoadBalanceCoreConstraint().sql());
-            constraints.add(DiNOSConstraints.getLoadBalanceMemsliceConstraint().sql());
-        }
+        constraints.add(DiNOSConstraints.getCapacityFunctionCoreConstraint().sql());
+        constraints.add(DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql());
 
         if (useLocalityConstraints) {
             constraints.add(DiNOSConstraints.getAppLocalityPlacedConstraint().sql());
             constraints.add(DiNOSConstraints.getAppLocalityPendingConstraint().sql());
         }
+
+        constraints.add(DiNOSConstraints.getSymmetryBreakingConstraint().sql());
 
         final OrToolsSolver.Builder builder = new OrToolsSolver.Builder()
                 .setPrintDiagnostics(usePrintDiagnostics)

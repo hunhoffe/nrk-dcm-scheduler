@@ -230,7 +230,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new DiNOSSolver(conn, true, true, false);
+        Solver solver = new DiNOSSolver(conn, true, false);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -262,7 +262,7 @@ public class TestSimulation {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new DiNOSSolver(conn, true, true, false);
+            Solver solver = new DiNOSSolver(conn, true, false);
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -338,7 +338,7 @@ public class TestSimulation {
         for (int i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new DiNOSSolver(conn, true, true, false);
+            Solver solver = new DiNOSSolver(conn, true, false);
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
