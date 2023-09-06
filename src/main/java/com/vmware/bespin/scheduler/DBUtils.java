@@ -39,14 +39,6 @@ public class DBUtils {
             throw new RuntimeException(e);
         }
 
-        // View to see totals of placed resources at each node
-        conn.execute("""
-                create view allocated as
-                select node, cast(sum(cores) as int) as cores, cast(sum(memslices) as int) as memslices
-                from placed
-                group by node
-                """);
-
         // View to see total unallocated (unused) resources at each node
         conn.execute("""
                 create view unallocated as
@@ -58,13 +50,6 @@ public class DBUtils {
                 group by n.id
                 """);
 
-        // View to see the nodes each application is placed on
-        conn.execute("""
-                create view app_nodes as
-                select application, node
-                from placed
-                group by application, node
-                """);
         return conn;
     }
     

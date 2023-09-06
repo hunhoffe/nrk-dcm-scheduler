@@ -25,8 +25,6 @@ import org.apache.commons.cli.ParseException;
 
 
 public class DiNOSRunner {
-    private static final String USE_CAP_FUNCTION_OPTION = "useCapFunction";
-    private static final boolean USE_CAP_FUNCTION_DEFAULT = true;
     private static final String MAX_REQUESTS_PER_SOLVE_OPTION = "maxReqsPerSolve";
     private static final int MAX_REQUESTS_PER_SOLVE_DEFAULT = 15;
     private static final String MAX_TIME_PER_SOLVE_OPTION = "maxTimePerSolve";
@@ -38,7 +36,6 @@ public class DiNOSRunner {
             SocketException, UnknownHostException, IOException {
         // These are the defaults for these parameters.
         // They should be overridden by commandline arguments.
-        boolean useCapFunction = USE_CAP_FUNCTION_DEFAULT;
         int maxReqsPerSolve = MAX_REQUESTS_PER_SOLVE_DEFAULT;
         long maxTimePerSolve = MAX_TIME_PER_SOLVE_DEFAULT;
         long pollInterval = POLL_INTERVAL_DEFAULT;
@@ -50,13 +47,6 @@ public class DiNOSRunner {
                 .longOpt("help").argName("h")
                 .hasArg(false)
                 .desc("print help message")
-                .build();
-        final Option useCapFunctionOption = Option.builder("f")
-                .longOpt(USE_CAP_FUNCTION_OPTION).argName(USE_CAP_FUNCTION_OPTION)
-                .hasArg()
-                .desc(String.format("use capability function vs hand-written constraints.%nDefault: %b",
-                        USE_CAP_FUNCTION_DEFAULT))
-                .type(Boolean.class)
                 .build();
         final Option maxReqsPerSolveOption = Option.builder("r")
                 .longOpt(MAX_REQUESTS_PER_SOLVE_OPTION).argName(MAX_REQUESTS_PER_SOLVE_OPTION)
@@ -81,7 +71,6 @@ public class DiNOSRunner {
                 .build();
 
         options.addOption(helpOption);
-        options.addOption(useCapFunctionOption);
         options.addOption(maxReqsPerSolveOption);
         options.addOption(maxTimePerSolveOption);
         options.addOption(pollIntervalOption);
@@ -96,9 +85,6 @@ public class DiNOSRunner {
                                 "target/scheduler-1.0-SNAPSHOT-jar-with-dependencies.jar [options]",
                         options);
                 return;
-            }
-            if (cmd.hasOption(USE_CAP_FUNCTION_OPTION)) {
-                useCapFunction = Boolean.parseBoolean(cmd.getOptionValue(USE_CAP_FUNCTION_OPTION));
             }
             if (cmd.hasOption(MAX_REQUESTS_PER_SOLVE_OPTION)) {
                 maxReqsPerSolve = Integer.parseInt(cmd.getOptionValue(MAX_REQUESTS_PER_SOLVE_OPTION));
@@ -117,7 +103,7 @@ public class DiNOSRunner {
         // Create an in-memory database and get a JOOQ connection to it
         final DSLContext conn = DBUtils.getConn();
 
-        final DiNOSSolver solver = new DiNOSSolver(conn, useCapFunction, true, false);
+        final DiNOSSolver solver = new DiNOSSolver(conn, true, false);
         final DiNOSScheduler scheduler = new DiNOSScheduler(conn, maxReqsPerSolve, maxTimePerSolve, pollInterval, 
                 InetAddress.getByName("172.31.0.11"), 10100, 10101, solver);
 

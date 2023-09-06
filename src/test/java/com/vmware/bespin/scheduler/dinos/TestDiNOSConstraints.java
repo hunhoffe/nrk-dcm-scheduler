@@ -22,90 +22,16 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class TestDiNOSConstraints {
     @Test
-    public void testPlacedConstraint() throws ClassNotFoundException {
-        // Create database
-        DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
-
-        // Create and build model
-        OrToolsSolver.Builder b = new OrToolsSolver.Builder()
-                .setPrintDiagnostics(false)
-                .setMaxTimeInSeconds(300);
-        Model model = Model.build(conn, b.build(), List.of(DiNOSConstraints.getPlacedConstraint().sql()));
-
-        // two nodes with 1 core, 1 memslice each
-        scheduler.addNode(1, 1, 1);
-        scheduler.addNode(2, 1, 1);
-        // one application
-        scheduler.addApplication(1);
-        // create 2 pending allocation
-        scheduler.generateRequest(null, 1, 0, 1);
-        scheduler.generateRequest(null, 0, 1, 1);
-
-        // one placed pending allocation
-        conn.execute("insert into pending values(3, 1, 1, 1, 'PLACED', 1, 1)");
-
-        // run model and check result
-        Result<? extends Record> results = model.solve("PENDING");
-
-        // Should be two placements by the model
-        assertEquals(3, results.size());
-        results.forEach(r -> {
-            // double check values in results are as expected
-            assertEquals(1, (int) r.get("APPLICATION"));
-            assertTrue(1 == (int) r.get("CONTROLLABLE__NODE") || 2 == (int) r.get("CONTROLLABLE__NODE"));
-
-            // this is the one that was already placed
-            if ((long) r.get("ID") == 3) {
-                assertEquals("PLACED", r.get("STATUS"));
-                assertEquals(1, (int) r.get("CURRENT_NODE"));
-                assertEquals((int) r.get("CURRENT_NODE"), (int) r.get("CONTROLLABLE__NODE"));
-                assertEquals(1, (int) r.get("CORES"));
-                assertEquals(1, (int) r.get("MEMSLICES"));
-            } else {
-                assertEquals("PENDING", r.get("STATUS"));
-                assertEquals(1, (int) r.get("CORES") + (int) r.get("MEMSLICES"));
-            }
-        });
-    }
-
-    @Test
-    public void testCapacity() throws ClassNotFoundException {
-        capacityTestWithPlaced(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
-                DiNOSConstraints.getSpareView().sql(),
-                DiNOSConstraints.getCapacityConstraint().sql()));
-
-        capacityTestWithoutPlaced(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
-                DiNOSConstraints.getSpareView().sql(),
-                DiNOSConstraints.getCapacityConstraint().sql()));
-    }
-
-    @Test
-    public void testLoadBalance() throws ClassNotFoundException {
-        loadBalanceTest(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
-                DiNOSConstraints.getSpareView().sql(),
-                DiNOSConstraints.getCapacityConstraint().sql(),
-                DiNOSConstraints.getLoadBalanceCoreConstraint().sql(),
-                DiNOSConstraints.getLoadBalanceMemsliceConstraint().sql()));
-    }
-
-    @Test
     public void testCapacityFunction() throws ClassNotFoundException {
         capacityTestWithPlaced(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         capacityTestWithoutPlaced(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
 
         loadBalanceTest(List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql()));
     }
@@ -121,7 +47,6 @@ public class TestDiNOSConstraints {
                 .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql(),
                 DiNOSConstraints.getAppLocalityPlacedConstraint().sql(),
@@ -173,7 +98,6 @@ public class TestDiNOSConstraints {
                 .setPrintDiagnostics(false)
                 .setMaxTimeInSeconds(300);
         Model model = Model.build(conn, b.build(), List.of(
-                DiNOSConstraints.getPlacedConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionCoreConstraint().sql(),
                 DiNOSConstraints.getCapacityFunctionMemsliceConstraint().sql(),
                 DiNOSConstraints.getAppLocalitySingleConstraint().sql()

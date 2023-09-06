@@ -202,9 +202,9 @@ public class SimulatorRunner {
         // Choose the scheduler
         Solver solver = null;
         if (scheduler.equals("DCMcap")) {
-            solver = new DiNOSSolver(conn, true, false, false);
+            solver = new DiNOSSolver(conn, false, false);
         } else if (scheduler.equals("DCMloc")) {
-            solver = new DiNOSSolver(conn, true, true, false);
+            solver = new DiNOSSolver(conn, true, false);
         } else if (scheduler.equals("R")) {
             solver = new RandomSolver(numNodes, coresPerNode, memslicesPerNode);
         } else if (scheduler.equals("RR")) {
