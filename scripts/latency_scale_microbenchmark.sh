@@ -6,7 +6,7 @@ MAIN_CLASS="com.vmware.bespin.simulation.SimulatorRunner"
 ITERS_PER_TEST=20
 
 # The lengths of all the config arrays need to be the same
-MACHINE_CONFIGS=(4 8 16 16)
+MACHINE_CONFIGS=(4 8 16 32)
 CORE_CONFIGS=(16 32 64 128)
 MEMSLICE_CONFIGS=(128 256 512 1024)
 # The number of different rack test configurations to run
@@ -15,8 +15,7 @@ NUM_CONFIGS=${#MACHINE_CONFIGS[@]}
 # % of cluster to fill
 RACK_UTILS=(10 50 90)
 
-SCHEDULERS="DCMcap DCMloc"
-# SCHEDULERS="R RR DCMcap DCMloc"
+SCHEDULERS="R RR FC DCMcap DCMloc"
 
 # Create output dir or bail
 OUTPUT_DIR="results"
@@ -31,7 +30,7 @@ do
     num_machines=${MACHINE_CONFIGS[$config_idx]}
     num_cores=${CORE_CONFIGS[$config_idx]}
     num_memslices=${MEMSLICE_CONFIGS[$config_idx]}
-    num_processes=$(( 4*num_machines ))
+    num_processes=$(( 2*num_machines ))
 
     # Iterate over rack utilization
     for rack_util in "${RACK_UTILS[@]}"

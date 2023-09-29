@@ -55,15 +55,15 @@ public class DiNOSConstraints {
                 """);
     }
 
-    public static Constraint getAppLocalityPendingConstraint() {
-        // TODO: do we want to maximize the sum? e.g., concentrate per node
+    /*
+    public static Constraint getOrigAppLocalityPendingConstraint() {
         return new Constraint(
                 "appLocalityPendingConstraint",
                 """
                 create constraint app_locality_pending_constraint as
                 select * from pending
                 maximize
-                    1024 * (pending.controllable__node in
+                    2048 * (pending.controllable__node in
                         (select b.controllable__node
                             from pending as b
                             where b.application = pending.application
@@ -71,16 +71,29 @@ public class DiNOSConstraints {
                         ))
                 """);
     }
+    */
+
+    public static Constraint getAppLocalityPendingConstraint() {
+        return new Constraint(
+        "appLocalityPendingConstraint",
+            """
+            create constraint app_locality_pending_constraint as
+            select * from pending
+            join pending as x
+            on pending.application = x.application
+                and not pending.id = x.id
+            maximize 1024 * (pending.controllable__node = x.controllable__node)
+            """);
+    }
 
     public static Constraint getAppLocalityPlacedConstraint() {
-        // TODO: do we want to maximize the sum? e.g., concentrate per node
         return new Constraint(
                 "appLocalityPlacedConstraint",
                 """
                 create constraint app_locality_placed_constraint as
                 select * from pending
                 maximize 
-                  1024 * (pending.controllable__node in
+                  4096 * (pending.controllable__node in
                         (select node
                             from placed
                             where placed.application = pending.application
@@ -88,7 +101,8 @@ public class DiNOSConstraints {
                 """);
     }
 
-    // We don't use this constraint right now, but might in the future.
+    // This is important when we have duplicate resource requests 
+    // (e.g. ap1 asks for 1 core, ap1 asks for 1 core, etc.)
     public static Constraint getSymmetryBreakingConstraint() {
         return new Constraint(
                 "symmetryBreakingConstraint",
