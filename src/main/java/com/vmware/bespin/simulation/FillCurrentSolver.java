@@ -19,9 +19,9 @@ import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
 import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 
-public class StickySolver implements Solver {
+public class FillCurrentSolver implements Solver {
 
-    protected Logger LOG = LogManager.getLogger(StickySolver.class);
+    protected Logger LOG = LogManager.getLogger(FillCurrentSolver.class);
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
     private int numNodes;
@@ -42,7 +42,7 @@ public class StickySolver implements Solver {
      * @param coresPerNode the number of cores per worker host
      * @param memslicesPerNode the number of memslices per worker host
      */
-    public StickySolver(final int numApplications, final int numNodes, final long coresPerNode, 
+    public FillCurrentSolver(final int numApplications, final int numNodes, final long coresPerNode, 
             final long memslicesPerNode) {
         this.numNodes = numNodes;
         this.numApplications = numApplications;

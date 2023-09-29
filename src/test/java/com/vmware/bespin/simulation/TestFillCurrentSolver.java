@@ -17,10 +17,10 @@ import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
 import com.vmware.bespin.scheduler.generated.tables.records.PendingRecord;
 
-public class TestStickySolver {
+public class TestFillCurrentSolver {
 
     @Test
-    public void testStickySolverSingleSolve() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverSingleSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -29,7 +29,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -49,7 +49,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testStickySolverMultiSolve() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverMultiSolve() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -58,7 +58,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -80,7 +80,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testStickySolverMultiStep() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverMultiStep() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -89,7 +89,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -111,7 +111,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testStickySolverFillExact() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverFillExact() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -120,7 +120,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -159,7 +159,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testStickySolverOverfill() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverOverfill() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -168,7 +168,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -215,7 +215,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testStickySolverPlacement() throws ClassNotFoundException, SolverException {
+    public void testFillCurrentSolverPlacement() throws ClassNotFoundException, SolverException {
         final int NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
         final long MEMSLICES_PER_NODE = 4;
@@ -224,7 +224,7 @@ public class TestStickySolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -278,7 +278,7 @@ public class TestStickySolver {
     }
 
     @Test
-    public void testFillStickySolverDistribution() throws Exception {
+    public void testFillCurrentSolverDistribution() throws Exception {
         final int NUM_NODES = 10;
         final long CORES_PER_NODE = 20;
         final long MEMSLICES_PER_NODE = 30;
@@ -298,7 +298,7 @@ public class TestStickySolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new StickySolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
