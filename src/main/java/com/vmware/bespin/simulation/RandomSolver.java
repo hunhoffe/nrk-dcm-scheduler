@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 
+import com.vmware.bespin.scheduler.Scheduler;
 import com.vmware.bespin.scheduler.Solver;
 import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
@@ -23,27 +24,13 @@ public class RandomSolver implements Solver {
     protected Logger LOG = LogManager.getLogger(RandomSolver.class);
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
-    private int numNodes;
-
-    private ArrayList<Long> freeCores = new ArrayList<Long>();
-    private ArrayList<Long> freeMemslices = new ArrayList<Long>();
-
     private final RandomDataGenerator rand;
 
     /**
      * Randomly assign requests for cores and memslices to nodes.
-     * @param numNodes the number of worker hosts in the cluster
-     * @param coresPerNode the number of cores per worker host
-     * @param memscliesPerNode the number of memslices per worker host
      */
-    public RandomSolver(final int numNodes, final long coresPerNode, final long memslicesPerNode) {
-        this.numNodes = numNodes;
+    public RandomSolver() {
         this.rand = new RandomDataGenerator();
-
-        for (int i = 0; i < this.numNodes; i++) {
-            freeMemslices.add(memslicesPerNode);
-            freeCores.add(coresPerNode);
-        }
     }
 
     /**
@@ -53,15 +40,16 @@ public class RandomSolver implements Solver {
      * @throws Exception this should never happen, but overriding subclasses may
      *                   throw errors.
      */
-    public Result<? extends org.jooq.Record> solve(final DSLContext conn) throws SolverException {
+    public Result<? extends org.jooq.Record> solve(final DSLContext conn, 
+                                                   final Scheduler scheduler) throws SolverException {
 
         // Fetch the requests to solve for
         final Result<org.jooq.Record> pendingRequests = conn.select().from(PENDING_TABLE).fetch();
+        final Integer[][] unallocatedResources = scheduler.unallocatedResources();
 
         if (null != pendingRequests && pendingRequests.isNotEmpty()) {
             // For every request, randomly set the controllable node.
             for (int i = 0; i < pendingRequests.size(); i++) {
-            //for (final org.jooq.Record r: pendingRequests) {
                 // Cast as pending and parse out the resources it's asking for.
                 final PendingRecord pending = pendingRequests.get(i).into(PENDING_TABLE);
                 final long coresToPlace = pending.getCores();
@@ -71,8 +59,8 @@ public class RandomSolver implements Solver {
                 // Place the cores
                 if (coresToPlace > 0) {
                     final ArrayList<Integer> options = new ArrayList<Integer>();
-                    for (int j = 0; j < freeCores.size(); j++) {
-                        if (freeCores.get(j) >= coresToPlace) {
+                    for (int j = 0; j < unallocatedResources[0].length; j++) {
+                        if (unallocatedResources[1][j] >= coresToPlace) {
                             options.add(j);
                         }
                     }
@@ -82,18 +70,15 @@ public class RandomSolver implements Solver {
 
                     final int trialPlacement = rand.nextInt(0, options.size() - 1);
                     final int coreIndex = options.get(trialPlacement);
-                    final long freeCoresForNode = freeCores.get(coreIndex);
-                    if (freeCoresForNode >= coresToPlace) {
-                        freeCores.set(coreIndex, freeCoresForNode - coresToPlace);
-                        pending.setControllable_Node(coreIndex + 1);
-                    }
+                    unallocatedResources[1][coreIndex] -= (int) coresToPlace;
+                    pending.setControllable_Node(unallocatedResources[0][coreIndex]);
                 }
 
                 // Place the memslices
                 if (memslicesToPlace > 0) {
                     final ArrayList<Integer> options = new ArrayList<Integer>();
-                    for (int j = 0; j < freeMemslices.size(); j++) {
-                        if (freeMemslices.get(j) >= memslicesToPlace) {
+                    for (int j = 0; j < unallocatedResources[0].length; j++) {
+                        if (unallocatedResources[2][j] >= memslicesToPlace) {
                             options.add(j);
                         }
                     }
@@ -103,11 +88,8 @@ public class RandomSolver implements Solver {
 
                     final int trialPlacement = rand.nextInt(0, options.size() - 1);
                     final int memsliceIndex = options.get(trialPlacement);
-                    final long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
-                    if (freeMemslicesForNode >= memslicesToPlace) {
-                        freeMemslices.set(memsliceIndex, freeMemslicesForNode - memslicesToPlace);
-                        pending.setControllable_Node(memsliceIndex + 1);
-                    }
+                    unallocatedResources[2][memsliceIndex] -= (int) memslicesToPlace;
+                    pending.setControllable_Node(unallocatedResources[0][memsliceIndex]);
                 }
                 pendingRequests.set(i, pending);
             }

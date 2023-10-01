@@ -26,7 +26,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RandomSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -34,7 +34,7 @@ public class TestRandomSolver {
         sim.generateRandomRequest();
 
         // Run solver
-        final Result<? extends org.jooq.Record> results = solver.solve(conn);
+        final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
 
         // Check result
         assertEquals(1, results.size());
@@ -55,7 +55,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RandomSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -65,7 +65,7 @@ public class TestRandomSolver {
         }
 
         // Run solver and check result
-        final Result<? extends org.jooq.Record> results = solver.solve(conn);
+        final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
         assertEquals(3, results.size());
 
         for (int i = 0; i < 3; i++) {
@@ -73,7 +73,14 @@ public class TestRandomSolver {
             final Integer controllableNode = pending.getControllable_Node();
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
+
+            // Apply scheduling decision
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
         }
+
+        // Clear pending table and check for capacity violation
+        conn.execute("truncate table pending;");
+        assertFalse(scheduler.checkForCapacityViolation());
     }
 
     @Test
@@ -86,7 +93,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RandomSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -95,7 +102,7 @@ public class TestRandomSolver {
             sim.generateRandomRequest();
 
             // Run solver and check result
-            final Result<? extends org.jooq.Record> results = solver.solve(conn);
+            final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
             assertEquals(1, results.size());
 
             final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -103,7 +110,12 @@ public class TestRandomSolver {
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+            // Apply scheduling decision and clear pending table.
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
             conn.execute("truncate table pending;");
+
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -117,7 +129,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RandomSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -127,7 +139,7 @@ public class TestRandomSolver {
                 scheduler.generateRequest(null, 1L, 0L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -135,14 +147,19 @@ public class TestRandomSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
                 scheduler.generateRequest(null, 0L, 1L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -150,7 +167,12 @@ public class TestRandomSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
     }
@@ -165,7 +187,7 @@ public class TestRandomSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RandomSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -175,7 +197,7 @@ public class TestRandomSolver {
                 scheduler.generateRequest(null, 1L, 0L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -183,14 +205,19 @@ public class TestRandomSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
                 scheduler.generateRequest(null, 0L, 1L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -198,16 +225,25 @@ public class TestRandomSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
 
         scheduler.generateRequest(null, 1L, 0L, 1);
         try {
-            solver.solve(conn);
+            solver.solve(conn, scheduler);
+            //bad
             fail("Should fail with solver exception when overfilling");
         } catch (final SolverException e) {
             // good
+            
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -232,15 +268,15 @@ public class TestRandomSolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new RandomSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new RandomSolver();
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             // Note that there is some error here, so it's possible the asserts below could fail and everything is okay.
             sim.fillPoisson(FILL_UTIL, 2, 3);
-            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 3);
-            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 3);
+            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 4);
+            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 4);
         
             for (int j = 1; j <= NUM_NODES; j++) {
                 aggregate_core_fill[j - 1] += scheduler.usedCoresForNode((long) j);

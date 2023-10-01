@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 
+import com.vmware.bespin.scheduler.Scheduler;
 import com.vmware.bespin.scheduler.Solver;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
@@ -61,7 +62,8 @@ public class DiNOSSolver implements Solver {
      * @throws Exception this should never happen, but overriding subclasses may
      *                   throw errors.
      */
-    public Result<? extends org.jooq.Record> solve(final DSLContext conn) throws SolverException {
+    public Result<? extends org.jooq.Record> solve(final DSLContext conn, 
+                                                   final Scheduler scheduler) throws SolverException {
         try {
             return (Result<? extends Record>) model.solve("PENDING");
         } catch (ModelException | SolverException err) {

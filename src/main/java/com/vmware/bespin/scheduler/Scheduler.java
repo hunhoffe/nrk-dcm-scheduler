@@ -574,7 +574,7 @@ public class Scheduler {
         final long start = System.currentTimeMillis();
         final long solveFinish;
         try {
-            results = solver.solve(conn);
+            results = solver.solve(conn, this);
             solveFinish = System.currentTimeMillis();
         } catch (final SolverException e) {
             LOG.error(e);

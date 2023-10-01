@@ -206,7 +206,7 @@ public class SimulatorRunner {
         } else if (scheduler.equals("DCMloc")) {
             solver = new DiNOSSolver(conn, true, true);
         } else if (scheduler.equals("R")) {
-            solver = new RandomSolver(numNodes, coresPerNode, memslicesPerNode);
+            solver = new RandomSolver();
         } else if (scheduler.equals("RR")) {
             solver = new RoundRobinSolver(numNodes, coresPerNode, memslicesPerNode);
         } else if (scheduler.equals("FC")) {
