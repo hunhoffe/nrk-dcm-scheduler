@@ -10,6 +10,7 @@ import com.vmware.bespin.rpc.RPCServer;
 import com.vmware.bespin.rpc.TCPClient;
 import com.vmware.bespin.rpc.TCPServer;
 import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.Solver;
 import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityAllocHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityReleaseHandler;
@@ -41,7 +42,7 @@ public class DiNOSScheduler extends Scheduler {
 
     DiNOSScheduler(final DSLContext conn, final int maxReqsPerSolve, final long maxTimePerSolve, 
             final long pollInterval, final InetAddress ip, final int serverPort, final int clientPort,
-            final DiNOSSolver solver) throws SocketException {
+            final Solver solver) throws SocketException {
 
         super(conn, solver);
 
