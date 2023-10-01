@@ -40,6 +40,12 @@ public class DiNOSRunner {
     private static final String SOLVER_OPTION = "solver";
     private static final String SOLVER_DEFAULT = "DCMloc";
 
+    // Do scheduler/solver logging
+    private static final String VERBOSE_OPTION = "verbose";
+
+    // Do DCM logging
+    private static final String DCM_LOGGING_OPTION = "logging";
+
     public static void main(final String[] args) throws ClassNotFoundException, InterruptedException, 
             SocketException, UnknownHostException, IOException {
         // These are the defaults for these parameters.
@@ -48,6 +54,8 @@ public class DiNOSRunner {
         long maxTimePerSolve = MAX_TIME_PER_SOLVE_DEFAULT;
         long pollInterval = POLL_INTERVAL_DEFAULT;
         String solver = SOLVER_DEFAULT;
+        boolean usePrintDiagnostics = false;
+        boolean verbose = false;
 
         // create Options object
         final Options options = new Options();
@@ -85,12 +93,22 @@ public class DiNOSRunner {
                     SOLVER_DEFAULT))
             .type(String.class)
             .build();
+        final Option verboseOption = Option.builder("v")
+            .longOpt(VERBOSE_OPTION).argName(VERBOSE_OPTION)
+            .desc("Run nrk-dcm-scheduler with verbose output (placement and timing information)")
+            .build();
+        final Option loggingOption = Option.builder("l")
+            .longOpt(DCM_LOGGING_OPTION).argName(DCM_LOGGING_OPTION)
+            .desc("Run DCM with print logging (for debugging)")
+            .build();
 
         options.addOption(helpOption);
         options.addOption(maxReqsPerSolveOption);
         options.addOption(maxTimePerSolveOption);
         options.addOption(pollIntervalOption);
         options.addOption(solverOption);
+        options.addOption(verboseOption);
+        options.addOption(loggingOption);
 
         final CommandLineParser parser = new DefaultParser();
         try {
@@ -123,6 +141,8 @@ public class DiNOSRunner {
                     return;
                 }
             }
+            usePrintDiagnostics = cmd.hasOption(DCM_LOGGING_OPTION);
+            verbose = cmd.hasOption(VERBOSE_OPTION);
         } catch (final ParseException ignored) {
             System.out.println("Failed to parse command line");
             System.exit(-1);
@@ -134,28 +154,23 @@ public class DiNOSRunner {
         // Choose the scheduler
         Solver mySolver = null;
         if (solver.equals("DCMcap")) {
-            System.out.println("Using DCMCap solver");
-            mySolver = new DiNOSSolver(conn, false, false);
+            mySolver = new DiNOSSolver(conn, false, usePrintDiagnostics);
         } else if (solver.equals("DCMloc")) {
-            System.out.println("Using DCMLoc solver");
-            mySolver = new DiNOSSolver(conn, true, false);
+            mySolver = new DiNOSSolver(conn, true, usePrintDiagnostics);
         } else if (solver.equals("R")) {
-            System.out.println("Using Random solver");
             mySolver = new RandomSolver();
         } else if (solver.equals("RR")) {
-            System.out.println("Using RoundRobin solver");
             mySolver = new RoundRobinSolver();
         } else if (solver.equals("FC")) {
-            System.out.println("Using FillCurrent solver");
             mySolver = new FillCurrentSolver();
         } else {
-            System.out.println("Scheduler type not supported yet.");
+            System.out.println("Scheduler type not supported.");
             System.exit(-1);
         }
 
         final DiNOSScheduler scheduler = new DiNOSScheduler(conn, maxReqsPerSolve, maxTimePerSolve, pollInterval, 
-                InetAddress.getByName("172.31.0.11"), 10100, 10101, mySolver);
+                InetAddress.getByName("172.31.0.11"), 10100, 10101, mySolver, verbose);
 
-        scheduler.run(false);
+        scheduler.run();
     }
 }

@@ -37,12 +37,13 @@ public class DiNOSScheduler extends Scheduler {
     private final int serverPort;
     private final int clientPort;
     private RPCClient rpcClient;
+    private boolean verbose;
 
     protected Logger LOG = LogManager.getLogger(DiNOSScheduler.class);
 
     DiNOSScheduler(final DSLContext conn, final int maxReqsPerSolve, final long maxTimePerSolve, 
             final long pollInterval, final InetAddress ip, final int serverPort, final int clientPort,
-            final Solver solver) throws SocketException {
+            final Solver solver, final boolean verbose) throws SocketException {
 
         super(conn, solver);
 
@@ -52,13 +53,15 @@ public class DiNOSScheduler extends Scheduler {
         this.ip = ip;
         this.serverPort = serverPort;
         this.clientPort = clientPort;
+        this.verbose = verbose;
 
-        LOG.info("Running scheduler with parameters: maxReqsPerSolve={}, maxTimePerSolve={}, " +
-                "pollInterval={}", maxReqsPerSolve, maxTimePerSolve, pollInterval);
+        LOG.warn("Running scheduler with parameters: maxReqsPerSolve={}, maxTimePerSolve={}, " +
+                "pollInterval={} solver={} verbose={}", 
+                maxReqsPerSolve, maxTimePerSolve, pollInterval, solver.getClass().toString(), verbose);
     }
 
     @Override
-    public boolean runSolverAndUpdateDB(final boolean printTimingData) throws IOException {
+    public boolean runSolverAndUpdateDB(final boolean verbose) throws IOException {
         final Result<? extends Record> results;
         final long start = System.currentTimeMillis();
         final long solveFinish;
@@ -100,14 +103,15 @@ public class DiNOSScheduler extends Scheduler {
         }
         
         final long updateFinish = System.currentTimeMillis();
-        if (printTimingData) {
+        if (verbose) {
             System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", solveFinish - start, 
                     updateFinish - start));
+            System.out.println(conn.fetch("select * from placed"));
         }
         return true;
     }
 
-    public void run(final boolean printTimingData) throws InterruptedException, IOException {
+    public void run() throws InterruptedException, IOException {
         final Runnable rpcRunner = () -> {
             try {
                 LOG.info("RPCServer thread started");
@@ -156,7 +160,7 @@ public class DiNOSScheduler extends Scheduler {
                         LOG.info(String.format("solver thread solving due to numRequests = %d", numRequests));
                     }
                     // Only actually solve if work to do, exit if solver error
-                    if (!runSolverAndUpdateDB(printTimingData)) {
+                    if (!runSolverAndUpdateDB(verbose)) {
                         break;
                     }
                 }
