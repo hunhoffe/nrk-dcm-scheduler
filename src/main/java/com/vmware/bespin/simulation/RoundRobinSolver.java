@@ -5,8 +5,6 @@
 
 package com.vmware.bespin.simulation;
 
-import java.util.ArrayList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -23,28 +21,13 @@ public class RoundRobinSolver implements Solver {
     protected Logger LOG = LogManager.getLogger(RoundRobinSolver.class);
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
-    private int numNodes;
-
-    private ArrayList<Long> freeCores = new ArrayList<Long>();
-    private ArrayList<Long> freeMemslices = new ArrayList<Long>();
-
     private int coreIndex = 0;
     private int memsliceIndex = 0;
 
     /**
      * Assign requests for cores and memslices to nodes in round-robin fashion.
-     * @param numNodes the number of worker hosts in the cluster
-     * @param coresPerNode the number of cores per worker host
-     * @param memslicesPerNode the number of memslices per worker host
      */
-    public RoundRobinSolver(final int numNodes, final long coresPerNode, final long memslicesPerNode) {
-        this.numNodes = numNodes;
-
-        for (int i = 0; i < this.numNodes; i++) {
-            freeMemslices.add(memslicesPerNode);
-            freeCores.add(coresPerNode);
-        }
-    }
+    public RoundRobinSolver() { }
 
     /**
      * Solve all outstanding requests in the pending table
@@ -58,6 +41,7 @@ public class RoundRobinSolver implements Solver {
 
         // Fetch the requests to solve for
         final Result<org.jooq.Record> pendingRequests = conn.select().from(PENDING_TABLE).fetch();
+        final Integer[][] unallocatedResources = scheduler.unallocatedResources();
 
         if (null != pendingRequests && pendingRequests.isNotEmpty()) {
             // For every request, randomly set the controllable node.
@@ -74,13 +58,13 @@ public class RoundRobinSolver implements Solver {
                     boolean placed = false;
                     final int coreIndexStart = coreIndex;
                     while (!placed) {
-                        final long freeCoresForNode = freeCores.get(coreIndex);
+                        final long freeCoresForNode = unallocatedResources[1][coreIndex];
                         if (freeCoresForNode >= coresToPlace) {
-                            freeCores.set(coreIndex, freeCoresForNode - coresToPlace);
-                            pending.setControllable_Node(coreIndex + 1);
+                            unallocatedResources[1][coreIndex] -= (int) coresToPlace;
+                            pending.setControllable_Node(unallocatedResources[0][coreIndex]);
                             placed = true;
                         }
-                        coreIndex = (coreIndex + 1) % numNodes;
+                        coreIndex = (coreIndex + 1) % unallocatedResources[0].length;
                         if ((coreIndex == coreIndexStart) && !placed) {
                             throw new SolverException("Infeasible", null);
                         }
@@ -92,13 +76,13 @@ public class RoundRobinSolver implements Solver {
                     boolean placed = false;
                     final int memsliceIndexStart = memsliceIndex;
                     while (!placed) {
-                        final long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
+                        final long freeMemslicesForNode = unallocatedResources[2][memsliceIndex];
                         if (freeMemslicesForNode >= memslicesToPlace) {
-                            freeMemslices.set(memsliceIndex, freeMemslicesForNode - memslicesToPlace);
-                            pending.setControllable_Node(memsliceIndex + 1);
+                            unallocatedResources[2][memsliceIndex] -= (int) memslicesToPlace;
+                            pending.setControllable_Node(unallocatedResources[0][memsliceIndex]);
                             placed = true;
                         }
-                        memsliceIndex = (memsliceIndex + 1) % numNodes;
+                        memsliceIndex = (memsliceIndex + 1) % unallocatedResources[0].length;
                         if ((memsliceIndex == memsliceIndexStart) && !placed) {
                             throw new SolverException("Infeasible", null);
                         }

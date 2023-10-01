@@ -26,7 +26,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -55,7 +55,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -73,7 +73,14 @@ public class TestRoundRobinSolver {
             final Integer controllableNode = pending.getControllable_Node();
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
+
+            // Apply scheduling decision
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
         }
+
+        // Clear pending table and check for capacity violation
+        conn.execute("truncate table pending;");
+        assertFalse(scheduler.checkForCapacityViolation());
     }
 
     @Test
@@ -86,7 +93,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -103,7 +110,12 @@ public class TestRoundRobinSolver {
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+            // Apply scheduling decision and clear pending table.
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
             conn.execute("truncate table pending;");
+
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -117,7 +129,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -135,7 +147,12 @@ public class TestRoundRobinSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
@@ -150,7 +167,12 @@ public class TestRoundRobinSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
     }
@@ -165,7 +187,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -183,7 +205,12 @@ public class TestRoundRobinSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
@@ -198,7 +225,12 @@ public class TestRoundRobinSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
 
@@ -208,6 +240,9 @@ public class TestRoundRobinSolver {
             fail("Should fail with solver exception when overfilling");
         } catch (final SolverException e) {
             // good
+
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -221,7 +256,7 @@ public class TestRoundRobinSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new RoundRobinSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -285,15 +320,15 @@ public class TestRoundRobinSolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new RoundRobinSolver(NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new RoundRobinSolver();
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             // Note that there is some error here, so it's possible the asserts below could fail and everything is okay.
             sim.fillPoisson(FILL_UTIL, 2, 3);
-            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 3);
-            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 3);
+            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 6);
+            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 6);
         
             for (int j = 1; j <= NUM_NODES; j++) {
                 aggregate_core_fill[j - 1] += scheduler.usedCoresForNode((long) j);
