@@ -70,7 +70,7 @@ public class Simulation {
         }
         
         // Add initial applications
-        for (int i = 1; i <= numApps; i++) {
+        for (int i = 0; i < numApps; i++) {
             scheduler.addApplication(i);
         }
     }
@@ -134,7 +134,7 @@ public class Simulation {
         
         // Choose an application to make the request
         long application = Math.round(rand.nextGaussian(appMean, appStdev));
-        while (application <= 0 || application > numApps) {
+        while (application < 0 || application >= numApps) {
             application = Math.round(rand.nextGaussian(appMean, appStdev));
             count++;
             if (count > 100) {
@@ -174,14 +174,14 @@ public class Simulation {
 
         // Assign cores to applications
         for (long i = 0; i < coreAllocs; i++) {
-            final long application = rand.nextLong(1, numApps);
+            final long application = rand.nextLong(0, numApps - 1);
             final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0) + 1, key.get(1)));
         }
 
         // Assign memslices to applications
         for (long i = 0; i < memsliceAllocs; i++) {
-            final long application = rand.nextLong(1, numApps);
+            final long application = rand.nextLong(0, numApps - 1);
             final List<Long> key = appAllocMap.getOrDefault(application, List.of(0L, 0L));
             appAllocMap.put(application, List.of(key.get(0), key.get(1) + 1));
         }

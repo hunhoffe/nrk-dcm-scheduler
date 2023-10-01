@@ -300,9 +300,9 @@ public class TestRoundRobinSolver {
                 aggregate_memslice_fill[j - 1] += scheduler.usedMemslicesForNode((long) j);
             }
 
-            for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += scheduler.usedCoresForApplication((long) j);
-                aggregate_memslice_per_app[j - 1] += scheduler.usedMemslicesForApplication((long) j);
+            for (int j = 0; j < NUM_APPS; j++) {
+                aggregate_core_per_app[j] += scheduler.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j] += scheduler.usedMemslicesForApplication((long) j);
             }
         }
 
@@ -322,9 +322,9 @@ public class TestRoundRobinSolver {
 
         float avg_core_for_app = 0;
         float avg_memslice_for_app = 0;
-        for (int j = 1; j <= NUM_APPS; j++) {
-            avg_core_for_app += (float) aggregate_core_per_app[j - 1] / (float) ITERS;
-            avg_memslice_for_app += (float) aggregate_memslice_per_app[j - 1] / (float) ITERS;
+        for (int j = 0; j < NUM_APPS; j++) {
+            avg_core_for_app += (float) aggregate_core_per_app[j] / (float) ITERS;
+            avg_memslice_for_app += (float) aggregate_memslice_per_app[j] / (float) ITERS;
         }
         avg_core_for_app /= (float) NUM_APPS;
         avg_memslice_for_app /= (float) NUM_APPS;
