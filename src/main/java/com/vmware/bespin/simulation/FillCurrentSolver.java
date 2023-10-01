@@ -101,7 +101,7 @@ public class FillCurrentSolver implements Solver {
 
                 // Place the cores
                 if (coresToPlace > 0) {
-                    final int coreIndex = coreIndices.get(application - 1);
+                    final int coreIndex = coreIndices.get(application);
                     long freeCoresForNode = freeCores.get(coreIndex);
 
                     if (freeCoresForNode >= coresToPlace) {
@@ -134,7 +134,7 @@ public class FillCurrentSolver implements Solver {
 
                 // Place the memslices
                 if (memslicesToPlace > 0) {
-                    final int memsliceIndex = memsliceIndices.get(application - 1);
+                    final int memsliceIndex = memsliceIndices.get(application);
                     long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
 
                     if (freeMemslicesForNode >= memslicesToPlace) {

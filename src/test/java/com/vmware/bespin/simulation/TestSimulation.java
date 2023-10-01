@@ -73,7 +73,7 @@ public class TestSimulation {
         // Check number of applications
         for (int i = 0; i < 10; i++) {
             final long randomApp = sim.chooseRandomApplication();
-            assert(randomApp >= 1 && randomApp <= NUM_APPS);
+            assert(randomApp >= 0 && randomApp < NUM_APPS);
         }
 
         // Check number of applications
@@ -95,7 +95,7 @@ public class TestSimulation {
         // Check number of applications
         for (int i = 0; i < 100000; i++) {
             final long randomApp = sim.chooseGaussianApplication();
-            assert(randomApp >= 1 && randomApp <= NUM_APPS);
+            assert(randomApp >= 0 && randomApp < NUM_APPS);
         }
 
         // Check number of applications
@@ -180,7 +180,7 @@ public class TestSimulation {
         // Fill entire cluster
         sim.fillRandom(100);
 
-        for (long application = 1; application <= NUM_APPS; application++) {
+        for (long application = 0; application < NUM_APPS; application++) {
             for (long node = 1; node <= NUM_NODES; node++) {
                 final long cores = scheduler.usedCoresForApplicationOnNode(application, node);
                 final long memslices = scheduler.usedMemslicesForApplicationOnNode(application, node);
@@ -276,9 +276,9 @@ public class TestSimulation {
                 aggregate_memslice_fill[j - 1] += scheduler.usedMemslicesForNode((long) j);
             }
 
-            for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += scheduler.usedCoresForApplication((long) j);
-                aggregate_memslice_per_app[j - 1] += scheduler.usedMemslicesForApplication((long) j);
+            for (int j = 0; j < NUM_APPS; j++) {
+                aggregate_core_per_app[j] += scheduler.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j] += scheduler.usedMemslicesForApplication((long) j);
             }
         }
 
@@ -298,9 +298,9 @@ public class TestSimulation {
 
         float avg_core_for_app = 0;
         float avg_memslice_for_app = 0;
-        for (int j = 1; j <= NUM_APPS; j++) {
-            avg_core_for_app += (float) aggregate_core_per_app[j - 1] / (float) ITERS;
-            avg_memslice_for_app += (float) aggregate_memslice_per_app[j - 1] / (float) ITERS;
+        for (int j = 0; j < NUM_APPS; j++) {
+            avg_core_for_app += (float) aggregate_core_per_app[j] / (float) ITERS;
+            avg_memslice_for_app += (float) aggregate_memslice_per_app[j] / (float) ITERS;
         }
         avg_core_for_app /= (float) NUM_APPS;
         avg_memslice_for_app /= (float) NUM_APPS;
@@ -348,9 +348,9 @@ public class TestSimulation {
             aggregate_core_fill += scheduler.usedCores();
             aggregate_memslice_fill += scheduler.usedMemslices();
 
-            for (int j = 1; j <= NUM_APPS; j++) {
-                aggregate_core_per_app[j - 1] += scheduler.usedCoresForApplication((long) j);
-                aggregate_memslice_per_app[j - 1] += scheduler.usedMemslicesForApplication((long) j);
+            for (int j = 0; j < NUM_APPS; j++) {
+                aggregate_core_per_app[j] += scheduler.usedCoresForApplication((long) j);
+                aggregate_memslice_per_app[j] += scheduler.usedMemslicesForApplication((long) j);
             }
         }
         float avg_core_fill = ((float) aggregate_core_fill) / ((float) ITERS);
@@ -363,9 +363,9 @@ public class TestSimulation {
 
         float avg_core_for_app = 0;
         float avg_memslice_for_app = 0;
-        for (int j = 1; j <= NUM_APPS; j++) {
-            avg_core_for_app += (float) aggregate_core_per_app[j - 1] / (float) ITERS;
-            avg_memslice_for_app += (float) aggregate_memslice_per_app[j - 1] / (float) ITERS;
+        for (int j = 0; j < NUM_APPS; j++) {
+            avg_core_for_app += (float) aggregate_core_per_app[j] / (float) ITERS;
+            avg_memslice_for_app += (float) aggregate_memslice_per_app[j] / (float) ITERS;
         }
         avg_core_for_app /= (float) NUM_APPS;
         avg_memslice_for_app /= (float) NUM_APPS;
