@@ -1,6 +1,7 @@
 package com.vmware.bespin.simulation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.HashSet;
@@ -29,7 +30,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -58,7 +59,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -76,7 +77,14 @@ public class TestFillCurrentSolver {
             final Integer controllableNode = pending.getControllable_Node();
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
+
+            // Apply scheduling decision
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
         }
+
+        // Clear pending table and check for capacity violation
+        conn.execute("truncate table pending;");
+        assertFalse(scheduler.checkForCapacityViolation());
     }
 
     @Test
@@ -89,7 +97,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -106,7 +114,12 @@ public class TestFillCurrentSolver {
             assert controllableNode != null;
             assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+            // Apply scheduling decision and clear pending table.
+            scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
             conn.execute("truncate table pending;");
+
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -120,7 +133,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -138,7 +151,12 @@ public class TestFillCurrentSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
@@ -153,7 +171,12 @@ public class TestFillCurrentSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
     }
@@ -168,7 +191,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -186,7 +209,12 @@ public class TestFillCurrentSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
 
             for (int j = 0; j < MEMSLICES_PER_NODE; j++) {
@@ -201,7 +229,12 @@ public class TestFillCurrentSolver {
                 assert controllableNode != null;
                 assert controllableNode >= 1 && controllableNode <= NUM_NODES;
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
         }
 
@@ -211,6 +244,9 @@ public class TestFillCurrentSolver {
             fail("Should fail with solver exception when overfilling");
         } catch (final SolverException e) {
             // good
+
+            // Check for capacity violation
+            assertFalse(scheduler.checkForCapacityViolation());
         }
     }
 
@@ -224,7 +260,7 @@ public class TestFillCurrentSolver {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+        Solver solver = new FillCurrentSolver();
         Scheduler scheduler = new Scheduler(conn, solver);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
@@ -247,7 +283,12 @@ public class TestFillCurrentSolver {
                 nodeSet.add(controllableNode);
                 totalCoreNodeSet.add(controllableNode);
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
             // Should fill one node at a time.
             assertEquals(1, nodeSet.size());
@@ -267,7 +308,12 @@ public class TestFillCurrentSolver {
                 nodeSet.add(controllableNode);
                 totalMemsliceNodeSet.add(controllableNode);
 
+                // Apply scheduling decision and clear pending table.
+                scheduler.updateAllocation(controllableNode, pending.getApplication(), pending.getCores(), pending.getMemslices());
                 conn.execute("truncate table pending;");
+
+                // Check for capacity violation
+                assertFalse(scheduler.checkForCapacityViolation());
             }
             // Should fill one node at a time.
             assertEquals(1, nodeSet.size());
@@ -298,15 +344,15 @@ public class TestFillCurrentSolver {
         for (long i = 0; i < ITERS; i++) {
             // Create database
             DSLContext conn = DBUtils.getConn();
-            Solver solver = new FillCurrentSolver(NUM_APPS, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE);
+            Solver solver = new FillCurrentSolver();
             Scheduler scheduler = new Scheduler(conn, solver);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
             // Note that there is some error here, so it's possible the asserts below could fail and everything is okay.
             sim.fillPoisson(FILL_UTIL, 2, 3);
-            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 3);
-            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 3);
+            assertEquals((scheduler.coreCapacity() * FILL_UTIL) / 100, scheduler.usedCores(), 2.0 * 4);
+            assertEquals((scheduler.memsliceCapacity() * FILL_UTIL) / 100, scheduler.usedMemslices(), 4.0 * 4);
         
             for (int j = 1; j <= NUM_NODES; j++) {
                 aggregate_core_fill[j - 1] += scheduler.usedCoresForNode((long) j);

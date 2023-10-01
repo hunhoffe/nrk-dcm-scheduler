@@ -25,12 +25,8 @@ public class FillCurrentSolver implements Solver {
     protected Logger LOG = LogManager.getLogger(FillCurrentSolver.class);
     public static final Pending PENDING_TABLE = Pending.PENDING;
 
-    private int numNodes;
-    private int numApplications;
+    public static final int MAX_APPLICATIONS = 256;  // somewhat arbitrary, could also be done dynamically
     private int nodeIterator = 17; // This number should be relatively prime towards numNodes
-
-    private ArrayList<Long> freeCores = new ArrayList<Long>();
-    private ArrayList<Long> freeMemslices = new ArrayList<Long>();
 
     private ArrayList<Integer> coreIndices = new ArrayList<Integer>();
     private ArrayList<Integer> memsliceIndices = new ArrayList<Integer>();
@@ -38,42 +34,12 @@ public class FillCurrentSolver implements Solver {
     /**
      * Assign requests for cores and memslices to nodes in a 'sticky' fashion,
      * that is, fill the current node before moving on.
-     * @param numApplications the number of applications
-     * @param numNodes the number of worker hosts in the cluster
-     * @param coresPerNode the number of cores per worker host
-     * @param memslicesPerNode the number of memslices per worker host
      */
-    public FillCurrentSolver(final int numApplications, final int numNodes, final long coresPerNode, 
-            final long memslicesPerNode) {
-        this.numNodes = numNodes;
-        this.numApplications = numApplications;
-        assert relativelyPrime(numNodes, nodeIterator);
-
-        for (int i = 0; i < this.numNodes; i++) {
-            freeMemslices.add(memslicesPerNode);
-            freeCores.add(coresPerNode);
+    public FillCurrentSolver() {
+        for (int i = 0; i < MAX_APPLICATIONS; i++) {
+            coreIndices.add(-1);
+            memsliceIndices.add(-1);
         }
-
-        for (int i = 0; i < this.numApplications; i++) {
-            coreIndices.add(i % numNodes);
-            memsliceIndices.add(i % numNodes);
-        }
-
-        /*
-        // we can remove this, this is just sanity checking that we get a complete cycle over the nodes
-        for (int app = 0; app < numApplications; app++) {
-            final Set<Integer> visits = new HashSet<Integer>();
-            int currentNode = app % numNodes;
-            for (int i = 0; i < numNodes; i++) {
-                visits.add(currentNode);
-                currentNode = (currentNode + nodeIterator) % numNodes;
-            }
-            // Should start and end in the same place
-            assert (app % numNodes) == currentNode;
-            // Each currentNode shoud be unique to be full cycle over the nodes
-            assert visits.size() == numNodes;
-        }
-        */
     }
 
     /**
@@ -88,6 +54,8 @@ public class FillCurrentSolver implements Solver {
 
         // Fetch the requests to solve for
         final Result<org.jooq.Record> pendingRequests = conn.select().from(PENDING_TABLE).fetch();
+        final Integer[][] unallocatedResources = scheduler.unallocatedResources();
+        final int numNodes = unallocatedResources[0].length;
 
         if (null != pendingRequests && pendingRequests.isNotEmpty()) {
             // For every request, randomly set the controllable node.
@@ -103,13 +71,18 @@ public class FillCurrentSolver implements Solver {
 
                 // Place the cores
                 if (coresToPlace > 0) {
-                    final int coreIndex = coreIndices.get(application);
-                    long freeCoresForNode = freeCores.get(coreIndex);
+                    int coreIndex = coreIndices.get(application);
+                    if (coreIndex == -1) {
+                        // Initialize the index
+                        coreIndices.set(application, application % numNodes);
+                        coreIndex = application % numNodes;
+                    }
+                    long freeCoresForNode = unallocatedResources[1][coreIndex];
 
                     if (freeCoresForNode >= coresToPlace) {
                         // If current node has space, allocate from there
-                        freeCores.set(coreIndex, freeCoresForNode - coresToPlace);
-                        pending.setControllable_Node(coreIndex + 1);
+                        unallocatedResources[1][coreIndex] -= (int) coresToPlace;
+                        pending.setControllable_Node(unallocatedResources[0][coreIndex]);
                     } else {
                         // If current node does not have space, find a new node.
                         boolean placed = false;
@@ -117,11 +90,11 @@ public class FillCurrentSolver implements Solver {
 
                         while (!placed) {
                             newCoreIndex = (newCoreIndex + nodeIterator) % numNodes;
-                            freeCoresForNode = freeCores.get(newCoreIndex);
+                            freeCoresForNode = unallocatedResources[1][newCoreIndex];
                             if (freeCoresForNode >= coresToPlace) {
                                 // If current node has space, allocate from there and update core index
-                                freeCores.set(newCoreIndex, freeCoresForNode - coresToPlace);
-                                pending.setControllable_Node(newCoreIndex + 1);
+                                unallocatedResources[1][newCoreIndex] -= (int) coresToPlace;
+                                pending.setControllable_Node(unallocatedResources[0][newCoreIndex]);
                                 coreIndices.set(application, newCoreIndex);
                                 placed = true;
                             } else if (newCoreIndex == coreIndex) {
@@ -136,12 +109,18 @@ public class FillCurrentSolver implements Solver {
 
                 // Place the memslices
                 if (memslicesToPlace > 0) {
-                    final int memsliceIndex = memsliceIndices.get(application);
-                    long freeMemslicesForNode = freeMemslices.get(memsliceIndex);
+                    int memsliceIndex = memsliceIndices.get(application);
+                    if (memsliceIndex == -1) {
+                        // Initialize the index
+                        memsliceIndices.set(application, application % numNodes);
+                        memsliceIndex = application % numNodes;
+                    }
+
+                    long freeMemslicesForNode = unallocatedResources[2][memsliceIndex];
 
                     if (freeMemslicesForNode >= memslicesToPlace) {
                         // If current node has space, allocate from there
-                        freeMemslices.set(memsliceIndex, freeMemslicesForNode - memslicesToPlace);
+                        unallocatedResources[2][memsliceIndex] -= (int) memslicesToPlace;
                         pending.setControllable_Node(memsliceIndex + 1);
                     } else {
                         // If current node does not have space, find a new node.
@@ -150,11 +129,11 @@ public class FillCurrentSolver implements Solver {
 
                         while (!placed) {
                             newMemsliceIndex = (newMemsliceIndex + nodeIterator) % numNodes;
-                            freeMemslicesForNode = freeMemslices.get(newMemsliceIndex);
+                            freeMemslicesForNode =  unallocatedResources[2][newMemsliceIndex];
                             if (freeMemslicesForNode >= memslicesToPlace) {
                                 // If current node has space, allocate from there and update memslice index
-                                freeMemslices.set(newMemsliceIndex, freeMemslicesForNode - memslicesToPlace);
-                                pending.setControllable_Node(newMemsliceIndex + 1);
+                                unallocatedResources[2][newMemsliceIndex] -= (int) memslicesToPlace;
+                                pending.setControllable_Node(unallocatedResources[0][newMemsliceIndex]);
                                 memsliceIndices.set(application, newMemsliceIndex);
                                 placed = true;
                             } else if (newMemsliceIndex == memsliceIndex) {

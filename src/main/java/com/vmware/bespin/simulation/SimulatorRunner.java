@@ -208,9 +208,9 @@ public class SimulatorRunner {
         } else if (scheduler.equals("R")) {
             solver = new RandomSolver();
         } else if (scheduler.equals("RR")) {
-            solver = new RoundRobinSolver(numNodes, coresPerNode, memslicesPerNode);
+            solver = new RoundRobinSolver();
         } else if (scheduler.equals("FC")) {
-            solver = new FillCurrentSolver(numApps, numNodes, coresPerNode, memslicesPerNode);
+            solver = new FillCurrentSolver();
         } else {
             System.err.println("Scheduler type not supported yet.");
             System.exit(-1);
