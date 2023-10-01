@@ -23,7 +23,7 @@ public class TestScheduler {
 
     private void populateCluster(Scheduler scheduler, long numNodes, long coresPerNode, long memslicesPerNode, long numApps) {
         // Populate applications
-        for (int i = 1; i <= numApps; i++) {
+        for (int i = 0; i < numApps; i++) {
             scheduler.addApplication(i);
         }
 
@@ -183,6 +183,47 @@ public class TestScheduler {
     }
 
     @Test
+    public void testUnallocatedResources() throws ClassNotFoundException {
+        final long NUM_NODES = 3;
+        final int CORES_PER_NODE = 3;
+        final int MEMSLICES_PER_NODE = 4;
+        final long NUM_APPS = 5;
+
+        // Create database
+        DSLContext conn = DBUtils.getConn();
+        Scheduler scheduler = new Scheduler(conn, null);
+        populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
+
+        // Check that all resources are unallocated
+        Integer[][] unallocated = scheduler.unallocatedResources();
+        assertEquals(NUM_NODES, unallocated[0].length);
+        assertEquals(NUM_NODES, unallocated[1].length);
+        assertEquals(NUM_NODES, unallocated[2].length);
+
+        for (int i = 0; i < NUM_NODES; i++) {
+            assertEquals(CORES_PER_NODE, unallocated[1][i]);
+            assertEquals(MEMSLICES_PER_NODE, unallocated[2][i]);
+        }
+
+        // Okay, now let's allocate some resources.
+        scheduler.updateAllocation(1L, 0L, 1, 3);
+        unallocated = scheduler.unallocatedResources();
+        assertEquals(NUM_NODES, unallocated[0].length);
+        assertEquals(NUM_NODES, unallocated[1].length);
+        assertEquals(NUM_NODES, unallocated[2].length);
+
+        // should have less resources on the first (0th) node
+        assertEquals(CORES_PER_NODE - 1, unallocated[1][0]);
+        assertEquals(MEMSLICES_PER_NODE - 3, unallocated[2][0]);
+
+        // All other nodes should have full resources
+        for (int i = 1; i < NUM_NODES; i++) {
+            assertEquals(CORES_PER_NODE, unallocated[1][i]);
+            assertEquals(MEMSLICES_PER_NODE, unallocated[2][i]);
+        }
+    }
+
+    @Test
     public void testPendingRequests() throws ClassNotFoundException {
         final long NUM_NODES = 2;
         final long CORES_PER_NODE = 3;
@@ -198,9 +239,9 @@ public class TestScheduler {
         for (long i = 0; i < scheduler.coreCapacity() + scheduler.memsliceCapacity(); i++) {
             assertEquals(scheduler.getNumPendingRequests(), i);
             if (i < scheduler.coreCapacity()) {
-                scheduler.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 1, 0, i % NUM_APPS);
             } else {
-                scheduler.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 0, 1, i % NUM_APPS);
             }
         }
     }
@@ -230,9 +271,9 @@ public class TestScheduler {
             assertEquals(i, pendingIdSet.size());
 
             if (i < scheduler.coreCapacity()) {
-                scheduler.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 1, 0, i % NUM_APPS);
             } else {
-                scheduler.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 0, 1, i % NUM_APPS);
             }
         }
     }
@@ -264,9 +305,9 @@ public class TestScheduler {
             assertEquals(pendingIdSetBaseline, pendingIdSet);
 
             if (i < scheduler.coreCapacity()) {
-                scheduler.generateRequest(i, 1, 0, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(i, 1, 0, i % NUM_APPS);
             } else {
-                scheduler.generateRequest(i, 0, 1, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(i, 0, 1, i % NUM_APPS);
             }
             pendingIdSetBaseline.add(i);
         }
@@ -320,7 +361,7 @@ public class TestScheduler {
             long usedMemslicesForNode = scheduler.usedMemslicesForNode(coreNode);
             
             // add nothing
-            scheduler.updateAllocation(coreNode, rand.nextLong(1, NUM_APPS), 0, 0);
+            scheduler.updateAllocation(coreNode, rand.nextLong(0, NUM_APPS - 1), 0, 0);
             
             // check cores
             assertEquals(usedCores, scheduler.usedCores());
@@ -331,7 +372,7 @@ public class TestScheduler {
             assertEquals(usedMemslicesForNode, scheduler.usedMemslicesForNode(coreNode));
 
             // add a core
-            final long coreApplication = rand.nextLong(1, NUM_APPS);
+            final long coreApplication = rand.nextLong(0, NUM_APPS - 1);
             long coresPerApplicationOnNode = scheduler.usedCoresForApplicationOnNode(coreApplication, coreNode);
             long memslicesPerApplicationOnNode = scheduler.usedMemslicesForApplicationOnNode(coreApplication, coreNode);
             scheduler.updateAllocation(coreNode, coreApplication, 1, 0);
@@ -354,7 +395,7 @@ public class TestScheduler {
             usedMemslicesForNode = scheduler.usedMemslicesForNode(memNode);
             
             // add a memslice
-            final long memsliceApplication = rand.nextLong(1, NUM_APPS);
+            final long memsliceApplication = rand.nextLong(0, NUM_APPS - 1);
             coresPerApplicationOnNode = scheduler.usedCoresForApplicationOnNode(memsliceApplication, memNode);
             memslicesPerApplicationOnNode = scheduler.usedMemslicesForApplicationOnNode(memsliceApplication, memNode);
             scheduler.updateAllocation(memNode, memsliceApplication, 0, 1);
@@ -521,9 +562,9 @@ public class TestScheduler {
 
             // Generate a random request
             if (i <= scheduler.coreCapacity()) {
-                scheduler.generateRequest(null, 1, 0, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 1, 0, i % NUM_APPS);
             } else {
-                scheduler.generateRequest(null, 0, 1, (i % NUM_APPS) + 1);
+                scheduler.generateRequest(null, 0, 1, i % NUM_APPS);
             }
             assertEquals(1, scheduler.getNumPendingRequests());
 
