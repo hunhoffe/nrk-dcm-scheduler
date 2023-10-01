@@ -34,7 +34,7 @@ public class TestRoundRobinSolver {
         sim.generateRandomRequest();
 
         // Run solver
-        final Result<? extends org.jooq.Record> results = solver.solve(conn);
+        final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
 
         // Check result
         assertEquals(1, results.size());
@@ -65,7 +65,7 @@ public class TestRoundRobinSolver {
         }
 
         // Run solver and check result
-        final Result<? extends org.jooq.Record> results = solver.solve(conn);
+        final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
         assertEquals(3, results.size());
 
         for (int i = 0; i < 3; i++) {
@@ -95,7 +95,7 @@ public class TestRoundRobinSolver {
             sim.generateRandomRequest();
 
             // Run solver and check result
-            final Result<? extends org.jooq.Record> results = solver.solve(conn);
+            final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
             assertEquals(1, results.size());
 
             final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -127,7 +127,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 1L, 0L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -142,7 +142,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 0L, 1L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -175,7 +175,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 1L, 0L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -190,7 +190,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 0L, 1L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -204,7 +204,7 @@ public class TestRoundRobinSolver {
 
         scheduler.generateRequest(null, 1L, 0L, 1);
         try {
-            solver.solve(conn);
+            solver.solve(conn, scheduler);
             fail("Should fail with solver exception when overfilling");
         } catch (final SolverException e) {
             // good
@@ -234,7 +234,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 1L, 0L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);
@@ -250,7 +250,7 @@ public class TestRoundRobinSolver {
                 scheduler.generateRequest(null, 0L, 1L, 1);
 
                 // Run solver and check result
-                final Result<? extends org.jooq.Record> results = solver.solve(conn);
+                final Result<? extends org.jooq.Record> results = solver.solve(conn, scheduler);
                 assertEquals(1, results.size());
 
                 final PendingRecord pending = results.get(0).into(PENDING_TABLE);

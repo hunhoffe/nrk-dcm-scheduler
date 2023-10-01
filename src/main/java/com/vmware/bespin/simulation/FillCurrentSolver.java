@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 
+import com.vmware.bespin.scheduler.Scheduler;
 import com.vmware.bespin.scheduler.Solver;
 import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.generated.tables.Pending;
@@ -82,7 +83,8 @@ public class FillCurrentSolver implements Solver {
      * @throws Exception this should never happen, but overriding subclasses may
      *                   throw errors.
      */
-    public Result<? extends org.jooq.Record> solve(final DSLContext conn) throws SolverException {
+    public Result<? extends org.jooq.Record> solve(final DSLContext conn, 
+                                                   final Scheduler scheduler) throws SolverException {
 
         // Fetch the requests to solve for
         final Result<org.jooq.Record> pendingRequests = conn.select().from(PENDING_TABLE).fetch();
