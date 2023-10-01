@@ -167,6 +167,22 @@ public class Scheduler {
         return coresUsed;
     }
 
+    /**
+     * Return a summary of unused (unallocated) resources, per node.
+     * 
+     * @return unallocated a nested array, where the first array is the list of node ids, 
+     * the second array is the list of free cores, and the third array is the list of free memslices.
+     */
+    public Integer[][] unallocatedResources() {
+        final String sql = String.format("select * from unallocated");
+        final Result<Record> unallocatedResults = conn.fetch(sql);
+
+        final Integer[] nodes = (Integer[]) unallocatedResults.intoArray(0);
+        final Integer[] unallocatedCores = (Integer[]) unallocatedResults.intoArray(1);
+        final Integer[] unallocatedMemslices = (Integer[]) unallocatedResults.intoArray(2);
+        final Integer[][] unallocated = { nodes, unallocatedCores, unallocatedMemslices };
+        return unallocated;
+    }
 
     /**
      * The number of memslices allocated for a particular application
