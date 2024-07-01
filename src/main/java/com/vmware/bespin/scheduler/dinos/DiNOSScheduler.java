@@ -11,7 +11,6 @@ import com.vmware.bespin.rpc.TCPClient;
 import com.vmware.bespin.rpc.TCPServer;
 import com.vmware.bespin.scheduler.Scheduler;
 import com.vmware.bespin.scheduler.Solver;
-import com.vmware.bespin.scheduler.SolverException;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityAllocHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.AffinityReleaseHandler;
 import com.vmware.bespin.scheduler.dinos.rpc.AllocHandler;
@@ -42,6 +41,7 @@ public class DiNOSScheduler extends Scheduler {
     private final int clientPort;
     private RPCClient rpcClient;
     public final ExecutorService workerPool;
+    private boolean calledShutdown;
 
     protected Logger LOG = LogManager.getLogger(DiNOSScheduler.class);
 
@@ -58,6 +58,7 @@ public class DiNOSScheduler extends Scheduler {
         this.serverPort = serverPort;
         this.clientPort = clientPort;
         this.workerPool = Executors.newFixedThreadPool(4);
+        this.calledShutdown = false;
 
         // this is a hack so we don't have to register new applications (for now)
         for (long i = 0; i < 3; i++) {
@@ -77,7 +78,7 @@ public class DiNOSScheduler extends Scheduler {
         try {
             results = solver.solve(conn, this);
             solveFinish = System.currentTimeMillis();
-        } catch (final SolverException e) {
+        } catch (final com.vmware.bespin.scheduler.SolverException e) {
             LOG.error(e);
             //if (this.getNumPendingRequests() > 0) {
                 // TOOD: Notify requests they were not feasible. Drop them from the pending table.
@@ -179,12 +180,14 @@ public class DiNOSScheduler extends Scheduler {
                         LOG.error("Failed to wait for RPC server to stop");
                         LOG.error(e.toString());
                     }
-                    try {
-                        LOG.warn("Shutting down main thread...");
-                        mainThread.join();
-                    } catch (final InterruptedException e) {
-                        LOG.error("Failed to wait for main thread to stop");
-                        LOG.error(e.toString());
+                    if (!calledShutdown) {
+                        try {
+                            LOG.warn("Shutting down main thread...");
+                            mainThread.join();
+                        } catch (final InterruptedException e) {
+                            LOG.error("Failed to wait for main thread to stop");
+                            LOG.error(e.toString());
+                        }
                     }
                 }
                 rpcClient.cleanUp();
@@ -217,7 +220,8 @@ public class DiNOSScheduler extends Scheduler {
                         // Only actually solve if work to do, exit if solver error
                         if (!runSolverAndUpdateDB()) {
                             LOG.error("Solver failed unexpectedly.");
-                            break;
+                            this.calledShutdown = true;
+                            System.exit(-1);
                         }
                     }
                     lastSolve = System.currentTimeMillis();
@@ -227,6 +231,5 @@ public class DiNOSScheduler extends Scheduler {
                 LOG.error(e.toString());
             }
         }
-        // shutdown hook will be called
     }
 }

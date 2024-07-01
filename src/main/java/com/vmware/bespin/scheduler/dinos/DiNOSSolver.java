@@ -18,7 +18,6 @@ import com.vmware.bespin.scheduler.Scheduler;
 import com.vmware.bespin.scheduler.Solver;
 import com.vmware.dcm.Model;
 import com.vmware.dcm.ModelException;
-import com.vmware.dcm.SolverException;
 import com.vmware.dcm.backend.ortools.OrToolsSolver;
 
 public class DiNOSSolver implements Solver {
@@ -63,11 +62,12 @@ public class DiNOSSolver implements Solver {
      *                   throw errors.
      */
     public Result<? extends org.jooq.Record> solve(final DSLContext conn, 
-                                                   final Scheduler scheduler) throws SolverException {
+                                                   final Scheduler scheduler) 
+                                                   throws com.vmware.bespin.scheduler.SolverException {
         try {
             return (Result<? extends Record>) model.solve("PENDING");
-        } catch (ModelException | SolverException err) {
-            throw new SolverException("DCM Solver failed: " + err.getMessage());
+        } catch (ModelException | com.vmware.dcm.SolverException err) {
+            throw new com.vmware.bespin.scheduler.SolverException("DCM Solver failed: " + err.getMessage(), err);
         }
     }
 }
