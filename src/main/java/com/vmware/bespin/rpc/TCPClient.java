@@ -61,7 +61,8 @@ public class TCPClient extends RPCClient {
         return msg.payload();
     }
  
-    private void cleanUp() {
+    @Override
+    public void cleanUp() {
         try {
             if (null != this.clientOut) {
                 this.clientOut.close();
