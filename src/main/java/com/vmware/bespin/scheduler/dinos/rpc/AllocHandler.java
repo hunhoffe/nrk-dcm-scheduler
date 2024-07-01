@@ -14,22 +14,25 @@ import org.apache.logging.log4j.Logger;
 
 public class AllocHandler extends RPCHandler<Scheduler> {
     private static final Logger LOG = LogManager.getLogger(AllocHandler.class);
-    private long requestId = 0;
+    private static long requestId = 0;
 
     @Override
     public RPCMessage handleRPC(final RPCMessage msg, final Scheduler scheduler) {
         final RPCHeader hdr = msg.hdr();
         final AllocRequest req = new AllocRequest(msg.payload());
 
+        // Each core and memslice becomes a new request, so reserve a unique block
+        final long requestIdStart = this.requestId;
+        this.requestId += req.cores + req.memslices;
+
+        // TODO: should add to executor pool?
         // Add application to application table if new
         scheduler.addApplication(req.application);
 
         // Add request to pending table
-        scheduler.generateRequests(requestId, req.cores, req.memslices, req.application);
-        LOG.info("Processed scheduler request: {}", req);
+        scheduler.generateRequests(requestIdStart, req.cores, req.memslices, req.application);
 
-        final long requestIdStart = requestId;
-        requestId += req.cores + req.memslices;
+        LOG.info("Processed scheduler request: {}", req);
 
         hdr.msgLen = AllocResponse.BYTE_LEN;
         return new RPCMessage(hdr, new AllocResponse(requestIdStart).toBytes());

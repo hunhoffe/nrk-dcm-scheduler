@@ -22,6 +22,7 @@ public class ReleaseHandler extends RPCHandler<Scheduler> {
         final RPCHeader hdr = msg.hdr();
         final ReleaseRequest req = new ReleaseRequest(msg.payload());
 
+        // TODO: add to executor pool?
         scheduler.releaseAllocation(req.nodeId, req.application, req.cores, req.memslices);
         LOG.info("Processed release request: {}", req);
 

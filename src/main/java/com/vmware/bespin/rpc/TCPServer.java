@@ -94,10 +94,10 @@ public class TCPServer<S> extends RPCServer<S> {
                         break;
                     }
                 } else {
+                    LOG.warn("Shutting down TCPServer");
                     break;
                 }
             }
-            LOG.error("Shutting down TCPServer");
             this.cleanUp();
         } catch (final IOException e) {
             LOG.error("Server failed: {}", Arrays.toString(e.getStackTrace()));
@@ -132,6 +132,7 @@ public class TCPServer<S> extends RPCServer<S> {
 
     private RPCMessage receive() throws IOException {
         if (null == this.clientIn) {
+            this.cleanUp();
             throw new IOException("No clients connected");
         }
         int bytesRead = 0;
@@ -139,9 +140,14 @@ public class TCPServer<S> extends RPCServer<S> {
 
         // Read in entire header
         while (bytesRead < RPCHeader.BYTE_LEN && !this.shutdown) {
-            ret = this.clientIn.read(hdrBuff, bytesRead, RPCHeader.BYTE_LEN - bytesRead);
-            if (ret > 0) {
-                bytesRead += ret;
+            if (this.clientIn.available() >= RPCHeader.BYTE_LEN - bytesRead) {
+                ret = this.clientIn.read(hdrBuff, bytesRead, RPCHeader.BYTE_LEN - bytesRead);
+                if (ret > 0) {
+                    bytesRead += ret;
+                } else if (ret < 0) {
+                    this.cleanUp();
+                    throw new IOException("End of stream detected.");
+                }
             }
         }
         if (this.shutdown) {
@@ -153,17 +159,26 @@ public class TCPServer<S> extends RPCServer<S> {
         // Read in entire payload
         final byte[] payload = new byte[(int) hdr.msgLen];
         bytesRead = 0;
-        while (bytesRead < hdr.msgLen) {
-            ret = this.clientIn.read(payload, bytesRead, (int) hdr.msgLen - bytesRead);
-            if (ret > 0) {
-                bytesRead += ret;
+        while (bytesRead < hdr.msgLen && !this.shutdown) {
+            if (this.clientIn.available() >= hdr.msgLen) {
+                ret = this.clientIn.read(payload, bytesRead, (int) hdr.msgLen - bytesRead);
+                if (ret > 0) {
+                    bytesRead += ret;
+                } else if (ret < 0) {
+                    this.cleanUp();
+                    throw new IOException("End of stream detected.");
+                }
             }
+        }
+        if (this.shutdown) {
+            return null;
         }
         return new RPCMessage(hdr, payload);
     }
 
     private void respond(final RPCMessage msg) throws IOException {
         if (null == this.clientOut) {
+            this.cleanUp();
             throw new IOException("No clients connected");
         }
 

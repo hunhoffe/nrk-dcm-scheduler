@@ -37,7 +37,7 @@ public class TestScheduler {
     public void testRunnerInstantiationZero() throws ClassNotFoundException {
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         // Check number of nodes
         assertEquals(0, scheduler.numNodes());
@@ -71,7 +71,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, numNodes, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of nodes
@@ -134,7 +134,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
     
         // Check number of nodes
         assertEquals(scheduler.numNodes(), numNodes);
@@ -174,7 +174,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         for (int i = 1; i <= numApps; i++) {
             scheduler.addApplication(i);
@@ -191,7 +191,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check that all resources are unallocated
@@ -232,7 +232,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Add a request
@@ -255,7 +255,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         Set<Long> pendingIdSet = new HashSet<Long>();
@@ -287,7 +287,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         Set<Long> pendingIdSet = new HashSet<Long>();
@@ -323,14 +323,14 @@ public class TestScheduler {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new DiNOSSolver(conn, true, false);
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         assertEquals(scheduler.getNumPendingRequests(), 0);
         assertEquals(scheduler.usedCores() + scheduler.usedMemslices(), 0);
 
         // No requests to fulfill
-        assertFalse(scheduler.runSolverAndUpdateDB(false));
+        assertFalse(scheduler.runSolverAndUpdateDB());
 
         assertEquals(scheduler.getNumPendingRequests(), 0);
         assertEquals(scheduler.usedCores() + scheduler.usedMemslices(), 0);
@@ -345,7 +345,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         RandomDataGenerator rand = new RandomDataGenerator(new JDKRandomGenerator(0xc0ffee));
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -427,7 +427,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         scheduler.updateAllocation(1, 1, 1, 0);
@@ -474,7 +474,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         RandomDataGenerator rand = new RandomDataGenerator(new JDKRandomGenerator(0xc0ffee));
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -525,7 +525,7 @@ public class TestScheduler {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         RandomDataGenerator rand = new RandomDataGenerator(new JDKRandomGenerator(0xc0ffee));
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
@@ -551,7 +551,7 @@ public class TestScheduler {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new DiNOSSolver(conn, true, false);
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         assertEquals(scheduler.getNumPendingRequests(), 0);
@@ -569,7 +569,7 @@ public class TestScheduler {
             assertEquals(1, scheduler.getNumPendingRequests());
 
             // Fulfull the request
-            assertTrue(scheduler.runSolverAndUpdateDB(false));
+            assertTrue(scheduler.runSolverAndUpdateDB());
 
             // Check used resources is correct
             assertEquals(i, scheduler.usedCores() + scheduler.usedMemslices());
@@ -616,7 +616,7 @@ public class TestScheduler {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new DiNOSSolver(conn, true, false);
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         populateCluster(scheduler, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         assertEquals(scheduler.getNumPendingRequests(), 0);
@@ -627,7 +627,7 @@ public class TestScheduler {
         assertEquals(scheduler.getNumPendingRequests(), 3);
 
         // Fulfull the request
-        assertTrue(scheduler.runSolverAndUpdateDB(false));
+        assertTrue(scheduler.runSolverAndUpdateDB());
         assertEquals(scheduler.usedCores(), 3);
         assertEquals(scheduler.usedMemslices(), 0);
         assertEquals(scheduler.getNumPendingRequests(), 0);
@@ -637,7 +637,7 @@ public class TestScheduler {
         assertEquals(scheduler.getNumPendingRequests(), 2);
 
         // Fulfull the request
-        assertTrue(scheduler.runSolverAndUpdateDB(false));
+        assertTrue(scheduler.runSolverAndUpdateDB());
         assertEquals(scheduler.usedCores(), 3);
         assertEquals(scheduler.usedMemslices(), 2);
         assertEquals(scheduler.getNumPendingRequests(), 0);
@@ -647,7 +647,7 @@ public class TestScheduler {
         assertEquals(scheduler.getNumPendingRequests(), 4);
         
         // Fulfull the request
-        assertTrue(scheduler.runSolverAndUpdateDB(false));
+        assertTrue(scheduler.runSolverAndUpdateDB());
         assertEquals(scheduler.usedCores(), 5);
         assertEquals(scheduler.usedMemslices(), 4);
         assertEquals(scheduler.getNumPendingRequests(), 0);
