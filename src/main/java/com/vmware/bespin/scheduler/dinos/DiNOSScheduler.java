@@ -29,6 +29,9 @@ import org.jooq.Result;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class DiNOSScheduler extends Scheduler {
     private final int maxReqsPerSolve;
@@ -38,6 +41,7 @@ public class DiNOSScheduler extends Scheduler {
     private final int serverPort;
     private final int clientPort;
     private RPCClient rpcClient;
+    public final ExecutorService workerPool;
 
     protected Logger LOG = LogManager.getLogger(DiNOSScheduler.class);
 
@@ -53,6 +57,12 @@ public class DiNOSScheduler extends Scheduler {
         this.ip = ip;
         this.serverPort = serverPort;
         this.clientPort = clientPort;
+        this.workerPool = Executors.newFixedThreadPool(4);
+
+        // this is a hack so we don't have to register new applications (for now)
+        for (long i = 0; i < 3; i++) {
+            addApplication(i);
+        }
 
         LOG.warn("Running scheduler with parameters: maxReqsPerSolve={}, maxTimePerSolve={}, " +
                 "pollInterval={} solver={} verbose={}", 
@@ -98,6 +108,7 @@ public class DiNOSScheduler extends Scheduler {
             final SchedulerAssignment assignment = new SchedulerAssignment(recordId, controllableNode.longValue());
             LOG.warn("Assigning alloc_id {} cores={} memslices={} to node {}", recordId, cores, memslices, 
                     controllableNode.longValue());
+
             this.rpcClient.call(RPCID.ALLOC_ASSIGNMENT, assignment.toBytes());
         }
         
@@ -111,7 +122,7 @@ public class DiNOSScheduler extends Scheduler {
     }
 
     public void run() throws InterruptedException, IOException {
-        final RPCServer<Scheduler> rpcServer = new TCPServer<Scheduler>("172.31.0.20", this.serverPort);
+        final RPCServer<DiNOSScheduler> rpcServer = new TCPServer<DiNOSScheduler>("172.31.0.20", this.serverPort);
         LOG.info("Created server");
         rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
         rpcServer.register(RPCID.ALLOC, new AllocHandler());
@@ -141,7 +152,24 @@ public class DiNOSScheduler extends Scheduler {
         final Thread mainThread = Thread.currentThread();
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
-                LOG.warn("Shutting down main thread...");
+                if (workerPool != null) {
+                    LOG.warn("Waiting for worker pool to shut down");
+                    workerPool.shutdown(); // Disable new tasks from being submitted
+                    try {
+                        // Wait a while for existing tasks to terminate
+                        if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                            workerPool.shutdownNow();
+                            if (!workerPool.awaitTermination(5, TimeUnit.SECONDS)) {
+                                LOG.error("Pool did not terminate");
+                            }
+                        }
+                    } catch (final InterruptedException ignored) {
+                        // (Re-)Cancel if current thread also interrupted
+                        workerPool.shutdownNow();
+                        // Preserve interrupt status
+                        Thread.currentThread().interrupt();
+                    }
+                }
                 if (rpcThread.isAlive()) {
                     LOG.warn("Waiting for RPC server to shutdown...");
                     rpcServer.stopServer();
@@ -152,12 +180,14 @@ public class DiNOSScheduler extends Scheduler {
                         LOG.error(e.toString());
                     }
                     try {
+                        LOG.warn("Shutting down main thread...");
                         mainThread.join();
                     } catch (final InterruptedException e) {
                         LOG.error("Failed to wait for main thread to stop");
                         LOG.error(e.toString());
                     }
                 }
+                rpcClient.cleanUp();
                 LOG.warn("Exiting.");
             }
         });

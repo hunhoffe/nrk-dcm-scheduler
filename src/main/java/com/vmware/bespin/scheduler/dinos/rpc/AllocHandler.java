@@ -8,16 +8,16 @@ package com.vmware.bespin.scheduler.dinos.rpc;
 import com.vmware.bespin.rpc.RPCHandler;
 import com.vmware.bespin.rpc.RPCHeader;
 import com.vmware.bespin.rpc.RPCMessage;
-import com.vmware.bespin.scheduler.Scheduler;
+import com.vmware.bespin.scheduler.dinos.DiNOSScheduler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class AllocHandler extends RPCHandler<Scheduler> {
+public class AllocHandler extends RPCHandler<DiNOSScheduler> {
     private static final Logger LOG = LogManager.getLogger(AllocHandler.class);
     private static long requestId = 0;
 
     @Override
-    public RPCMessage handleRPC(final RPCMessage msg, final Scheduler scheduler) {
+    public RPCMessage handleRPC(final RPCMessage msg, final DiNOSScheduler scheduler) {
         final RPCHeader hdr = msg.hdr();
         final AllocRequest req = new AllocRequest(msg.payload());
 
@@ -25,12 +25,15 @@ public class AllocHandler extends RPCHandler<Scheduler> {
         final long requestIdStart = this.requestId;
         this.requestId += req.cores + req.memslices;
 
-        // TODO: should add to executor pool?
-        // Add application to application table if new
-        scheduler.addApplication(req.application);
+        // TODO: how to validate?
+        final Runnable createRequests = () -> {
+            // Add request to pending table
+            scheduler.generateRequests(requestIdStart, req.cores, req.memslices, req.application);
+        };
 
-        // Add request to pending table
-        scheduler.generateRequests(requestIdStart, req.cores, req.memslices, req.application);
+        scheduler.workerPool.execute(
+            createRequests
+        );
 
         LOG.info("Processed scheduler request: {}", req);
 

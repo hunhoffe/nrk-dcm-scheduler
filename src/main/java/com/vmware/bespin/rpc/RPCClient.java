@@ -16,4 +16,7 @@ public abstract class RPCClient {
  
     /// Trigger an RPC
     public abstract byte[] call(RPCID id, byte[] dataIn) throws IOException;
+
+    /// Teardown the client gracefully
+    public abstract void cleanUp();
 }
