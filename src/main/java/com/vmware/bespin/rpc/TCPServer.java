@@ -21,18 +21,20 @@ import java.util.HashMap;
 
 
 public class TCPServer<S> extends RPCServer<S> {
-    ServerSocket socket = null;
-    Socket clientSocket = null;
-    OutputStream clientOut = null;
-    InputStream clientIn = null;
-    HashMap<Byte, RPCHandler> handlers = new HashMap<>();
-    byte[] hdrBuff = new byte[RPCHeader.BYTE_LEN];
+    private ServerSocket socket = null;
+    private Socket clientSocket = null;
+    private OutputStream clientOut = null;
+    private InputStream clientIn = null;
+    private HashMap<Byte, RPCHandler> handlers = new HashMap<>();
+    private byte[] hdrBuff = new byte[RPCHeader.BYTE_LEN];
     private static final Logger LOG = LogManager.getLogger(TCPServer.class);
+    private boolean shutdown;
 
     public TCPServer(final String ip, final int port) throws IOException {
         // Retry until successful just in cast tap interfaces aren't up
         boolean done = false;
-        while (!done) {
+        this.shutdown = false;
+        while (!done && !this.shutdown) {
             try {
                 this.socket = new ServerSocket(port, 1, InetAddress.getByName(ip));
                 LOG.info("Server socket address: " + this.socket.getLocalSocketAddress());
@@ -80,22 +82,34 @@ public class TCPServer<S> extends RPCServer<S> {
     }
 
     @Override
-    public boolean runServer(final S serverContext) throws IOException {
+    public void runServer(final S serverContext) throws IOException {
         try {
-            while (true) {
+            while (!this.shutdown) {
                 final RPCMessage msg = this.receive();
-                if (this.handlers.containsKey(msg.hdr().getType())) {
-                    this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg, serverContext));
+                if (!this.shutdown) {
+                    if (this.handlers.containsKey(msg.hdr().getType())) {
+                        this.respond(this.handlers.get(msg.hdr().getType()).handleRPC(msg, serverContext));
+                    } else {
+                        LOG.error("Invalid msgType: {}", msg.hdr().getType());
+                        break;
+                    }
                 } else {
-                    LOG.error("Invalid msgType: {}", msg.hdr().getType());
+                    break;
                 }
             }
+            LOG.error("Shutting down TCPServer");
+            this.cleanUp();
         } catch (final IOException e) {
             LOG.error("Server failed: {}", Arrays.toString(e.getStackTrace()));
             e.printStackTrace();
             this.cleanUp();
             throw e;
         }
+    }
+
+    @Override
+    public void stopServer() {
+        this.shutdown = true;
     }
 
     private void cleanUp() {
@@ -124,11 +138,14 @@ public class TCPServer<S> extends RPCServer<S> {
         int ret;
 
         // Read in entire header
-        while (bytesRead < RPCHeader.BYTE_LEN) {
+        while (bytesRead < RPCHeader.BYTE_LEN && !this.shutdown) {
             ret = this.clientIn.read(hdrBuff, bytesRead, RPCHeader.BYTE_LEN - bytesRead);
             if (ret > 0) {
                 bytesRead += ret;
             }
+        }
+        if (this.shutdown) {
+            return null;
         }
         final RPCHeader hdr = new RPCHeader(this.hdrBuff);
         LOG.info("Received header: {}", hdr.toString());

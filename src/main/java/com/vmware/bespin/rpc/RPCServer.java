@@ -19,5 +19,8 @@ public abstract class RPCServer<S> {
     public abstract boolean addClient();
 
     /// Run the RPC server
-    public abstract boolean runServer(S serverContext) throws IOException;
+    public abstract void runServer(S serverContext) throws IOException;
+
+    /// Stop the RPC server
+    public abstract void stopServer();
 }
