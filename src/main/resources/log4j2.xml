@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="info">
+<Configuration status="error">
     <Appenders>
         # Console appender
-        <Console name="console" target="SYSTEM_OUT">
+        <Console name="console" target="SYSTEM_ERR">
             # Pattern of log message for console appender
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} %p %m%n"/>
         </Console>
     </Appenders>
     <Loggers>
-        <Logger name="com.vmware.bespin.scheduler.Simulation" level="info" additivity="false">
+        <Logger name="com.vmware.bespin.scheduler.Simulation" level="error" additivity="false">
             <AppenderRef ref="console"/>
         </Logger>
         <Root level="warn">
