@@ -283,7 +283,7 @@ public class Simulation {
         int numSolves = 0;
         while (allocatedCores < targetCoreAllocs || allocatedMemslices < targetMemsliceAllocs) {
             stepPoisson(coreMean, allocatedCores < targetCoreAllocs, memsliceMean,
-                    allocatedMemslices < targetMemsliceAllocs, false);
+                    allocatedMemslices < targetMemsliceAllocs);
             numSolves += 1;
             allocatedCores = scheduler.usedCores();
             allocatedMemslices = scheduler.usedMemslices();
@@ -323,10 +323,9 @@ public class Simulation {
      * @param allocCores   if the step should include core requests
      * @param memsliceMean the mean cluster-wide memslice requests per solve step
      * @param allocMemslices if the step should include memslice requests
-     * @param printTimingData print timing data of the solve
      */
     public void stepPoisson(final double coreMean, final boolean allocCores, final double memsliceMean, 
-            final boolean allocMemslices, final boolean printTimingData) throws Exception {       
+            final boolean allocMemslices) throws Exception {       
         long coresToAlloc = 0;
         long memslicesToAlloc = 0;
         int count = 0;
@@ -361,6 +360,6 @@ public class Simulation {
         }
 
         // Now solve all requests from this round
-        scheduler.runSolverAndUpdateDB(printTimingData);
+        scheduler.runSolverAndUpdateDB();
     }
 }

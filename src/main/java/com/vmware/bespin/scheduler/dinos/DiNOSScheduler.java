@@ -21,6 +21,7 @@ import com.vmware.bespin.scheduler.dinos.rpc.ReleaseHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -37,7 +38,6 @@ public class DiNOSScheduler extends Scheduler {
     private final int serverPort;
     private final int clientPort;
     private RPCClient rpcClient;
-    private boolean verbose;
 
     protected Logger LOG = LogManager.getLogger(DiNOSScheduler.class);
 
@@ -45,7 +45,7 @@ public class DiNOSScheduler extends Scheduler {
             final long pollInterval, final InetAddress ip, final int serverPort, final int clientPort,
             final Solver solver, final boolean verbose) throws SocketException {
 
-        super(conn, solver);
+        super(conn, solver, verbose);
 
         this.maxReqsPerSolve = maxReqsPerSolve;
         this.maxTimePerSolve = maxTimePerSolve;
@@ -53,7 +53,6 @@ public class DiNOSScheduler extends Scheduler {
         this.ip = ip;
         this.serverPort = serverPort;
         this.clientPort = clientPort;
-        this.verbose = verbose;
 
         LOG.warn("Running scheduler with parameters: maxReqsPerSolve={}, maxTimePerSolve={}, " +
                 "pollInterval={} solver={} verbose={}", 
@@ -61,7 +60,7 @@ public class DiNOSScheduler extends Scheduler {
     }
 
     @Override
-    public boolean runSolverAndUpdateDB(final boolean verbose) throws IOException {
+    public boolean runSolverAndUpdateDB() throws IOException {
         final Result<? extends Record> results;
         final long start = System.currentTimeMillis();
         final long solveFinish;
@@ -103,7 +102,7 @@ public class DiNOSScheduler extends Scheduler {
         }
         
         final long updateFinish = System.currentTimeMillis();
-        if (verbose) {
+        if (this.verbose) {
             System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", solveFinish - start, 
                     updateFinish - start));
             System.out.println(conn.fetch("select * from placed"));
@@ -152,6 +151,12 @@ public class DiNOSScheduler extends Scheduler {
                         LOG.error("Failed to wait for RPC server to stop");
                         LOG.error(e.toString());
                     }
+                    try {
+                        mainThread.join();
+                    } catch (final InterruptedException e) {
+                        LOG.error("Failed to wait for main thread to stop");
+                        LOG.error(e.toString());
+                    }
                 }
                 LOG.warn("Exiting.");
             }
@@ -167,22 +172,29 @@ public class DiNOSScheduler extends Scheduler {
             final long timeElapsed = System.currentTimeMillis() - lastSolve;
 
             // Get number of rows
-            final long numRequests = getNumPendingRequests();
+            try {
+                final long numRequests = getNumPendingRequests();
 
-            // If time since last solve is too long, solve
-            if (timeElapsed >= this.maxTimePerSolve || numRequests >= this.maxReqsPerSolve) {
-                if (numRequests > 0) {
-                    if (timeElapsed >= this.maxTimePerSolve) {
-                        LOG.info(String.format("solver thread solving due to timeout: numRequests = %d", numRequests));
-                    } else {
-                        LOG.info(String.format("solver thread solving due to numRequests = %d", numRequests));
+                // If time since last solve is too long, solve
+                if (timeElapsed >= this.maxTimePerSolve || numRequests >= this.maxReqsPerSolve) {
+                    if (numRequests > 0) {
+                        if (timeElapsed >= this.maxTimePerSolve) {
+                            LOG.info(String.format(
+                                "solver thread solving due to timeout: numRequests = %d", numRequests));
+                        } else {
+                            LOG.info(String.format("solver thread solving due to numRequests = %d", numRequests));
+                        }
+                        // Only actually solve if work to do, exit if solver error
+                        if (!runSolverAndUpdateDB()) {
+                            LOG.error("Solver failed unexpectedly.");
+                            break;
+                        }
                     }
-                    // Only actually solve if work to do, exit if solver error
-                    if (!runSolverAndUpdateDB(verbose)) {
-                        break;
-                    }
+                    lastSolve = System.currentTimeMillis();
                 }
-                lastSolve = System.currentTimeMillis();
+            } catch (final DataAccessException e) {
+                LOG.error("Database closed unexpectedly.");
+                LOG.error(e.toString());
             }
         }
         // shutdown hook will be called

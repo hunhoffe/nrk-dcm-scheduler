@@ -216,7 +216,7 @@ public class SimulatorRunner {
             System.exit(-1);
         }
 
-        final Scheduler sched = new Scheduler(conn, solver);
+        final Scheduler sched = new Scheduler(conn, solver, false);
         System.out.println(String.format("Simulation setup: scheduler=%s, nodes=%d, coresPerNode=%d, " + 
                 "memSlicesPerNode=%d, numApps=%d, clusterUtil=%d, randomSeed=%d",
                 scheduler, numNodes, coresPerNode, memslicesPerNode, numApps, clusterUtil, randomSeed));
@@ -229,7 +229,7 @@ public class SimulatorRunner {
 
         // Populate the cluster
         simulation.fillPoisson(clusterUtil, coreMean, memsliceMean);
-        simulation.stepPoisson(coreMean, true, memsliceMean, true, true);
+        simulation.stepPoisson(coreMean, true, memsliceMean, true);
 
         // Check for violations
         if (sched.checkForCapacityViolation()) {

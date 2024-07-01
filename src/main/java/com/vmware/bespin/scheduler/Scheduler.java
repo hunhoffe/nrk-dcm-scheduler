@@ -28,6 +28,7 @@ public class Scheduler {
     public static final Applications APP_TABLE = Applications.APPLICATIONS;
     public static final Placed PLACED_TABLE = Placed.PLACED;
     public static final Pending PENDING_TABLE = Pending.PENDING;
+    public final boolean verbose;
 
     protected Logger LOG = LogManager.getLogger(Scheduler.class);
     protected final DSLContext conn;
@@ -41,11 +42,12 @@ public class Scheduler {
      * @param conn                the connection to the database to use
      * @param solver              solver used to assign request to resources
      */
-    public Scheduler(final DSLContext conn, final Solver solver) {
+    public Scheduler(final DSLContext conn, final Solver solver, final boolean verbose) {
 
         // Initialize internal state
         this.conn = conn;
         this.solver = solver;
+        this.verbose = verbose;
     }
 
     /**
@@ -382,19 +384,18 @@ public class Scheduler {
      * Print current cluster information
      */
     public void printStats() {
-
         // print resource usage statistics by node
-        System.out.println("Unallocated resources per node:");
-        System.out.println(conn.fetch("select * from unallocated"));
+        LOG.info("Unallocated resources per node:");
+        LOG.info(conn.fetch("select * from unallocated"));
 
         // print application statistics
-        System.out.println("Application resources grouped by node: ");;
+        LOG.info("Application resources grouped by node: ");;
         for (int i = 1; i <= numApps(); i++) {
-            System.out.println(String.format("FRAGMENTATION_PROCESS: app=%d, num_nodes=%d", i, nodesForApplication(i)));
+            LOG.info(String.format("FRAGMENTATION_PROCESS: app=%d, num_nodes=%d", i, nodesForApplication(i)));
         }
 
-        System.out.println("Placed Resources:");
-        System.out.println(conn.fetch("select * from placed"));
+        LOG.info("Placed Resources:");
+        LOG.info(conn.fetch("select * from placed"));
     }
 
     /**
@@ -564,12 +565,11 @@ public class Scheduler {
     /**
      * Run the model on pending requests and update the DB based on the assignments.
      * 
-     * @param printTimingData
      * @return hasUpdates whether the model made any assignments
      * @throws Exception this should never happen, but overriding subclasses may
      *                   throw errors.
      */
-    public boolean runSolverAndUpdateDB(final boolean printTimingData) throws Exception {
+    public boolean runSolverAndUpdateDB() throws Exception {
         final Result<? extends Record> results;
         final long start = System.currentTimeMillis();
         final long solveFinish;
@@ -595,7 +595,7 @@ public class Scheduler {
                     .execute();
         });
         final long updateFinish = System.currentTimeMillis();
-        if (printTimingData) {
+        if (this.verbose) {
             System.out.println(String.format("SOLVE_RESULTS: solve=%dms, solve_update=%dms", 
                     solveFinish - start, updateFinish - start));
         }

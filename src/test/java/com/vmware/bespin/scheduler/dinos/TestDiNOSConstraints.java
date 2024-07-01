@@ -40,7 +40,7 @@ public class TestDiNOSConstraints {
     public void testAppLocality() throws ClassNotFoundException {
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -91,7 +91,7 @@ public class TestDiNOSConstraints {
     public void testAppLocalitySingle() throws ClassNotFoundException {
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -139,7 +139,7 @@ public class TestDiNOSConstraints {
     private void capacityTestWithPlaced(List<String> constraints) throws ClassNotFoundException {
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()
@@ -214,7 +214,7 @@ public class TestDiNOSConstraints {
     private void capacityTestWithoutPlaced(List<String> constraints) throws ClassNotFoundException {
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
 
         // Create and build model
         OrToolsSolver.Builder b = new OrToolsSolver.Builder()

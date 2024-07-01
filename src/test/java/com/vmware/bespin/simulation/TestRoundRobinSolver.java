@@ -27,7 +27,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Generate a random request
@@ -56,7 +56,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
@@ -94,7 +94,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
@@ -130,7 +130,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
@@ -188,7 +188,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
@@ -257,7 +257,7 @@ public class TestRoundRobinSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new RoundRobinSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         int corePlacementNumber = 0;
@@ -321,7 +321,7 @@ public class TestRoundRobinSolver {
             // Create database
             DSLContext conn = DBUtils.getConn();
             Solver solver = new RoundRobinSolver();
-            Scheduler scheduler = new Scheduler(conn, solver);
+            Scheduler scheduler = new Scheduler(conn, solver, false);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.

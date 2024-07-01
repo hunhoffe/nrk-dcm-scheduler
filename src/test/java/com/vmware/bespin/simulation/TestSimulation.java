@@ -24,7 +24,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of nodes
@@ -67,7 +67,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of applications
@@ -89,7 +89,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Check number of applications
@@ -111,7 +111,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // check cores for util at 100%
@@ -132,7 +132,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // check cores for util at 100%
@@ -153,7 +153,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         // Add a request
@@ -172,7 +172,7 @@ public class TestSimulation {
 
         // Create database
         DSLContext conn = DBUtils.getConn();
-        Scheduler scheduler = new Scheduler(conn, null);
+        Scheduler scheduler = new Scheduler(conn, null, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
         
         final Random rand = new Random();
@@ -231,7 +231,7 @@ public class TestSimulation {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new DiNOSSolver(conn, true, false);
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
         sim.fillRandom(100);
@@ -263,7 +263,7 @@ public class TestSimulation {
             // Create database
             DSLContext conn = DBUtils.getConn();
             Solver solver = new DiNOSSolver(conn, true, false);
-            Scheduler scheduler = new Scheduler(conn, solver);
+            Scheduler scheduler = new Scheduler(conn, solver, false);
             Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
@@ -339,7 +339,7 @@ public class TestSimulation {
             // Create database
             DSLContext conn = DBUtils.getConn();
             Solver solver = new DiNOSSolver(conn, true, false);
-            Scheduler scheduler = new Scheduler(conn, solver);
+            Scheduler scheduler = new Scheduler(conn, solver, false);
             Simulation sim = new Simulation(conn, scheduler, null, NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.

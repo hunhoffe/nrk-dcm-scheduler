@@ -31,7 +31,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         // Generate a random request
@@ -60,7 +60,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
@@ -98,7 +98,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < 3; i++) {
@@ -134,7 +134,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
@@ -192,7 +192,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         for (int i = 0; i < NUM_NODES; i++) {
@@ -261,7 +261,7 @@ public class TestFillCurrentSolver {
         // Create database
         DSLContext conn = DBUtils.getConn();
         Solver solver = new FillCurrentSolver();
-        Scheduler scheduler = new Scheduler(conn, solver);
+        Scheduler scheduler = new Scheduler(conn, solver, false);
         Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
         Set<Integer> totalCoreNodeSet = new HashSet<Integer>();
@@ -345,7 +345,7 @@ public class TestFillCurrentSolver {
             // Create database
             DSLContext conn = DBUtils.getConn();
             Solver solver = new FillCurrentSolver();
-            Scheduler scheduler = new Scheduler(conn, solver);
+            Scheduler scheduler = new Scheduler(conn, solver, false);
             Simulation sim = new Simulation(conn, scheduler, null, (long) NUM_NODES, CORES_PER_NODE, MEMSLICES_PER_NODE, (long) NUM_APPS);
 
             // This calls check fill - so some checks just from calling it.
