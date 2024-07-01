@@ -112,23 +112,23 @@ public class DiNOSScheduler extends Scheduler {
     }
 
     public void run() throws InterruptedException, IOException {
+        final RPCServer<Scheduler> rpcServer = new TCPServer<Scheduler>("172.31.0.20", this.serverPort);
+        LOG.info("Created server");
+        rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
+        rpcServer.register(RPCID.ALLOC, new AllocHandler());
+        rpcServer.register(RPCID.RELEASE, new ReleaseHandler());
+        rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler());
+        rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
+        LOG.info("Registered handlers");
+        rpcServer.addClient();
+        LOG.info("Server added client");
+        this.rpcClient = new TCPClient(this.ip, this.clientPort);
+        LOG.info("Added RPC client");
+        this.rpcClient.connect();
+        LOG.info("Connected RPC client");
         final Runnable rpcRunner = () -> {
             try {
                 LOG.info("RPCServer thread started");
-                final RPCServer<Scheduler> rpcServer = new TCPServer<Scheduler>("172.31.0.20", this.serverPort);
-                LOG.info("Created server");
-                rpcServer.register(RPCID.REGISTER_NODE, new RegisterNodeHandler());
-                rpcServer.register(RPCID.ALLOC, new AllocHandler());
-                rpcServer.register(RPCID.RELEASE, new ReleaseHandler());
-                rpcServer.register(RPCID.AFFINITY_ALLOC, new AffinityAllocHandler());
-                rpcServer.register(RPCID.AFFINITY_RELEASE, new AffinityReleaseHandler());
-                LOG.info("Registered handlers");
-                rpcServer.addClient();
-                LOG.info("Server added client");
-                this.rpcClient = new TCPClient(this.ip, this.clientPort);
-                LOG.info("Added RPC client");
-                this.rpcClient.connect();
-                LOG.info("Connected RPC client");
                 rpcServer.runServer(this);
             } catch (final IOException e) {
                 LOG.error("RPCServer thread failed");
@@ -136,12 +136,30 @@ public class DiNOSScheduler extends Scheduler {
                 throw new RuntimeException();
             }
         };
-        final Thread thread = new Thread(rpcRunner);
-        thread.start();
+        final Thread rpcThread = new Thread(rpcRunner);
+        rpcThread.start();
+
+        final Thread mainThread = Thread.currentThread();
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                LOG.warn("Shutting down main thread...");
+                if (rpcThread.isAlive()) {
+                    LOG.warn("Waiting for RPC server to shutdown...");
+                    rpcServer.stopServer();
+                    try {
+                        rpcThread.join();
+                    } catch (final InterruptedException e) {
+                        LOG.error("Failed to wait for RPC server to stop");
+                        LOG.error(e.toString());
+                    }
+                }
+                LOG.warn("Exiting.");
+            }
+        });
 
         // Enter loop solve loop
         long lastSolve = System.currentTimeMillis();
-        while (true) {
+        while (rpcThread.isAlive()) {
             // Sleep for poll interval
             Thread.sleep(this.pollInterval);
 
@@ -166,6 +184,7 @@ public class DiNOSScheduler extends Scheduler {
                 }
                 lastSolve = System.currentTimeMillis();
             }
-        } // while (true)
+        }
+        // shutdown hook will be called
     }
 }
