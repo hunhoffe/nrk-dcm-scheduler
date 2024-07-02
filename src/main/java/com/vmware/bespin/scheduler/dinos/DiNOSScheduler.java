@@ -80,9 +80,15 @@ public class DiNOSScheduler extends Scheduler {
             solveFinish = System.currentTimeMillis();
         } catch (final com.vmware.bespin.scheduler.SolverException e) {
             LOG.error(e);
-            //if (this.getNumPendingRequests() > 0) {
-                // TOOD: Notify requests they were not feasible. Drop them from the pending table.
-            //}
+            final Long errReturn = new Long(-1);
+            if (this.getNumPendingRequests() > 0) {
+                final long[] pendingRequestIds = getPendingRequestIDs();
+                for (final long requestId : pendingRequestIds) {
+                    final SchedulerAssignment assignment = new SchedulerAssignment(requestId, errReturn);
+                    LOG.warn("Assigning error ({}) for alloc_id {}", errReturn, requestId);
+                    this.rpcClient.call(RPCID.ALLOC_ASSIGNMENT, assignment.toBytes());
+                }
+            }
             return false;
         }
 
